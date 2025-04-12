@@ -2,6 +2,7 @@ import express from 'express';
 import { TelegramWebhookSchema } from '../../types/telegram';
 import { handleMessage } from '../../handlers/telegram/messageHandler';
 import { handleCallback } from '../../handlers/telegram/callbackHandler';
+import { RedisService } from '../../services/redisService';
 
 const router = express.Router();
 
@@ -23,5 +24,16 @@ router.post('/webhook', async (req, res) => {
     res.status(400).json({ ok: false, error: 'Invalid webhook data' });
   }
 });
+
+
+router.get("/check",async(req:any,res:any)=>{
+  const data=await RedisService.getInstance().listKeys();
+  res.json(data);
+})
+
+router.get("/delete",async(req:any,res:any)=>{
+  const data=await RedisService.getInstance().deleteAllKeys();
+  res.json(data);
+})
 
 export default router;

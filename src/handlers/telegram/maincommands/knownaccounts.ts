@@ -1,10 +1,9 @@
-import { TELEGRAM_BASE_URL, VYBE_API_BASE_URL } from '../../../utils/constant';
-import { makeVybeRequest, updateMessage } from '../../../utils/helpers';
+import { TELEGRAM_BASE_URL } from '../../../utils/constant';
+import { makeVybeRequest, updateMessage, sendMessage } from '../../../utils/helpers';
 import { RedisService } from '../../../services/redisService';
 
 // Constants
-const REDIS_TTL = 180000; // 3 minutes
-
+const REDIS_TTL = 60; 
 /**
  * Display known accounts categories for selection
  */
@@ -13,7 +12,7 @@ export async function knownAccounts(chatId: number, messageId: number) {
     await updateMessage(TELEGRAM_BASE_URL, {
       chat_id: chatId,
       message_id: messageId,
-      text: '🔍 Select a category of known accounts:',
+      text: '🔍 Select a category of known accounts or search by address:',
       reply_markup: {
         inline_keyboard: [
           [
@@ -37,6 +36,9 @@ export async function knownAccounts(chatId: number, messageId: number) {
             { text: '🔄 CLMM', callback_data: '/sub-knownaccounts_CLMM' },
           ],
           [
+            { text: '🔍 Search by Address', callback_data: '/sub-knownaccounts_search' },
+          ],
+          [
             { text: '🔙 Main Menu', callback_data: '/main' },
           ],
         ],
@@ -48,6 +50,89 @@ export async function knownAccounts(chatId: number, messageId: number) {
   }
 }
 
+
+/**
+ * Start search flow by asking for address
+ */
+export async function startSearch(chatId: number, messageId: number) {
+  const redis = RedisService.getInstance();
+  await redis.del(`known_accounts_search:${chatId}`);
+  await redis.set(`known_accounts_search:${chatId}`, 'waiting_for_address', REDIS_TTL);
+  
+  await sendMessage(TELEGRAM_BASE_URL, {
+    chat_id: chatId,
+    text: 'Please enter the address you want to search for:',
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '🔙 Cancel Search', callback_data: '/knownaccounts' }],
+      ],
+    },
+  });
+}
+
+/**
+ * Handle search with address
+ */
+export async function searchAddress(chatId: number, address: string) {
+  try {
+    // Send acknowledgment message
+    const loadingMsg = await sendMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      text: `Searching for address ${address}... Please wait.`,
+    });
+
+    // Make the API request
+    const endpoint = `account/known-accounts?ownerAddress=${encodeURIComponent(address)}`;
+    const response = await makeVybeRequest(endpoint);
+    console.log('API response:', response);
+
+    let message = '';
+    let keyboard = [];
+
+    if (!response || !response.accounts || response.accounts.length === 0) {
+      message = `No labeled accounts found for address: ${address}`;
+      keyboard = [
+        [{ text: '🔍 New Search', callback_data: '/sub-knownaccounts_search' }],
+        [{ text: '🔙 Labelled Accounts', callback_data: '/knownaccounts' }],
+      ];
+    } else {
+      const account = response.accounts[0];
+      const labels = account.labels.filter((label: string) => label).join(', ') || 'N/A';
+      message = `🏷️ <b>Labeled Account Found</b>\n\n` +
+        `<b>Name:</b> ${account.name}\n` +
+        `<b>Address:</b> <code>${account.ownerAddress}</code>\n` +
+        `<b>Labels:</b> ${labels}\n` +
+        `<b>Entity:</b> ${account.entity || 'N/A'}\n` +
+        (account.twitterUrl ? `<b>Twitter:</b> ${account.twitterUrl}\n` : '') +
+        `<b>Added:</b> ${new Date(account.dateAdded).toLocaleDateString()}`;
+      keyboard = [
+        [{ text: '🔍 New Search', callback_data: '/sub-knownaccounts_search' }],
+        [{ text: '🔙 Labelled Accounts', callback_data: '/knownaccounts' }],
+      ];
+    }
+
+    // Delete loading message and send result
+    await sendMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      text: message,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: { inline_keyboard: keyboard },
+    });
+  } catch (error) {
+    console.error('Error in searchAddress:', error);
+    await sendMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      text: 'Error searching for the address. Please try again.',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🔍 Try Again', callback_data: '/sub-knownaccounts_search' }],
+          [{ text: '🔙 Labelled Accounts', callback_data: '/knownaccounts' }],
+        ],
+      },
+    });
+  }
+}
 
 /**
  * Handle known accounts request with specific label
@@ -142,7 +227,7 @@ export async function handleKnownAccountsRequest(
       },
       body: JSON.stringify({
         chat_id: chatId,
-        text: `Use these buttons to navigate:`,
+        text: `Tap a button below ⬇⬇`,
         reply_markup: {
           inline_keyboard: [
             [{ text: '🔙 Labelled Accounts', callback_data: '/knownaccounts' }],

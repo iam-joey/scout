@@ -11,10 +11,11 @@ import {
   sendMessage,
 } from '../../utils/helpers';
 import { displayMainMenu } from './mainMenu';
+import { searchAddress } from './maincommands/knownaccounts';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
-const REDIS_TTL = 180000; // 3 minutes
+const REDIS_TTL = 60; // 3 minutes
 
 /**
  * Handle NFT balance request when user sends a wallet address
@@ -206,6 +207,7 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
     // Get user state from Redis
     const redis = RedisService.getInstance();
     const userState = await redis.get(`userState-${userId}`);
+    const searchState = await redis.get(`known_accounts_search:${userId}`);
 
     // Handle commands and states
     switch (messageText) {
@@ -216,15 +218,29 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
       default:
         // Handle NFT balance request
         if (userState === 'nftBalances') {
+          console.log("inside nftBalances")
           await handleNftBalanceResponse(messageText, chatId, userId, baseUrl);
         } 
         // Handle token balance request
         else if (userState === 'tokenBalances') {
+          console.log("inside tokenBalances")
           await handleTokenBalanceResponse(messageText, chatId, userId, baseUrl);
         } 
         // Handle wallet PnL address request
         else if (userState === 'walletPnlAddress') {
+          console.log("inside walletPnlAddress")
           await handleWalletPnlResponse(messageText, chatId, userId, baseUrl);
+        }
+        // Handle known accounts search
+        else if (searchState === 'waiting_for_address') {
+          console.log("searchState");
+          if (!isValidSolanaAddress(messageText)) {
+            await sendErrorMessage(baseUrl, chatId, 'Invalid wallet address. Please enter a valid Solana address.');
+            return;
+          }
+          const redis = RedisService.getInstance();
+          await redis.del(`known_accounts_search:${chatId}`);
+          await searchAddress(chatId, messageText);
         }
         // Handle unknown commands
         else {

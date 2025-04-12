@@ -1,22 +1,22 @@
 import { RedisService } from '../../services/redisService';
 import type { TelegramWebHookCallBackQueryPayload } from '../../types/telegram';
 import { TELEGRAM_BASE_URL } from '../../utils/constant';
-import { knownAccounts, handleKnownAccountsRequest } from './maincommands/knownaccounts';
+import { knownAccounts, handleKnownAccountsRequest, startSearch } from './maincommands/knownaccounts';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
   formatWalletPnlHtml,
   isValidSolanaAddress,
   makeVybeRequest,
-  sendErrorMessage,
   updateMessage,
 } from '../../utils/helpers';
 import { balances } from './maincommands/balances';
 import { displayMainMenu as displayMainMenuFromMain } from './mainMenu';
+import { redis } from 'bun';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
-const REDIS_TTL = 180000; // 3 minutes
+const REDIS_TTL = 60; 
 
 /**
  * Handle NFT balance request
@@ -459,7 +459,12 @@ export const handleCallback = async (
       
       if(subCommand.startsWith('knownaccounts_')) {
         const label = subCommand.replace('knownaccounts_', '');
-        await handleKnownAccountsRequest(chatId, messageId, label);
+        if (label === 'search') {
+          await RedisService.getInstance().del(`userState-${userId}`);
+          await startSearch(chatId, messageId);
+        } else {
+          await handleKnownAccountsRequest(chatId, messageId, label);
+        }
         return;
       }
       
