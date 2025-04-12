@@ -6,6 +6,7 @@ import { RedisService } from '../../../services/redisService';
 const PROGRAM_SETTINGS_KEY = 'program_settings';
 const TVL_SETTINGS_KEY = 'tvl_settings';
 const TRANSACTIONS_SETTINGS_KEY = 'transactions_settings';
+const INSTRUCTIONS_SETTINGS_KEY = 'instructions_settings';
 const REDIS_TTL = 60;
 
 // Display programs menu
@@ -18,6 +19,7 @@ export async function displayProgramsMenu(chatId: number, messageId?: number) {
       [{ text: '📊 View Program Rankings', callback_data: '/sub-programs_ranking' }],
       [{ text: '💰 Check Total Value Locked (TVL)', callback_data: '/sub-programs_tvl' }],
       [{ text: '📈 Transactions Data', callback_data: '/sub-programs_transactions' }],
+      [{ text: '🔄 Instructions Data', callback_data: '/sub-programs_instructions' }],
       [{ text: '🔍 Program Details', callback_data: '/sub-programs_details' }],
       [{ text: '🔙 Back to Main Menu', callback_data: '/main' }]
     ]
@@ -66,6 +68,18 @@ export async function initializeProgramDefaults(chatId: number) {
       range: '1d'
     };
     await redis.set(transactionsKey, JSON.stringify(defaultTransactionsSettings));
+  }
+  
+  // Initialize Instructions settings if they don't exist
+  const instructionsKey = `${INSTRUCTIONS_SETTINGS_KEY}:${chatId}`;
+  const existingInstructionsSettings = await redis.get(instructionsKey);
+  
+  if (!existingInstructionsSettings) {
+    const defaultInstructionsSettings = {
+      range: '1d',
+      type: 'day' // 'day' or 'hour'
+    };
+    await redis.set(instructionsKey, JSON.stringify(defaultInstructionsSettings));
   }
 }
 

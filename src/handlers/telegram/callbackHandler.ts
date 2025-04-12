@@ -5,6 +5,7 @@ import { knownAccounts, handleKnownAccountsRequest, startSearch } from './mainco
 import { startNftOwnersSearch } from './maincommands/nftowners';
 import { displayProgramsMenu, initializeRankingFlow, handleSetLimit, showIntervalOptions, updateInterval, fetchRankings, initializeProgramDefaults, initializeTvlFlow, promptTvlResolution, promptProgramIdForTvl, initializeTransactionsFlow, updateTransactionsRange, promptProgramIdForTransactions } from './maincommands/programs';
 import { initializeProgramDetailsFlow, promptProgramIdForDetails } from './maincommands/programDetails';
+import { initializeInstructionsFlow, promptProgramIdForInstructions, promptInstructionsRange, updateInstructionsType } from './maincommands/instructionsData';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -564,6 +565,22 @@ export const handleCallback = async (
         }
         else if (programCommand === 'details_fetch') {
           await promptProgramIdForDetails(chatId);
+        }
+        // Instructions Data related commands
+        else if (programCommand === 'instructions') {
+          await initializeProgramDefaults(chatId);
+          await RedisService.getInstance().del(`instructions_state:${chatId}`);
+          await initializeInstructionsFlow(chatId, messageId);
+        }
+        else if (programCommand === 'instructions_fetch') {
+          await promptProgramIdForInstructions(chatId);
+        }
+        else if (programCommand === 'instructions_range') {
+          await promptInstructionsRange(chatId);
+        }
+        else if (programCommand.startsWith('instructions_type_')) {
+          const type = programCommand.replace('instructions_type_', '');
+          await updateInstructionsType(chatId, messageId, type);
         }
         return;
       }
