@@ -3,7 +3,7 @@ import type { TelegramWebHookCallBackQueryPayload } from '../../types/telegram';
 import { TELEGRAM_BASE_URL } from '../../utils/constant';
 import { knownAccounts, handleKnownAccountsRequest, startSearch } from './maincommands/knownaccounts';
 import { startNftOwnersSearch } from './maincommands/nftowners';
-import { displayProgramsMenu, initializeRankingFlow, handleSetLimit, showIntervalOptions, updateInterval, fetchRankings, initializeProgramDefaults, initializeTvlFlow, promptTvlResolution, promptProgramIdForTvl } from './maincommands/programs';
+import { displayProgramsMenu, initializeRankingFlow, handleSetLimit, showIntervalOptions, updateInterval, fetchRankings, initializeProgramDefaults, initializeTvlFlow, promptTvlResolution, promptProgramIdForTvl, initializeTransactionsFlow, updateTransactionsRange, promptProgramIdForTransactions } from './maincommands/programs';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -541,6 +541,19 @@ export const handleCallback = async (
         }
         else if (programCommand === 'tvl_fetch') {
           await promptProgramIdForTvl(chatId);
+        }
+        // Transactions data related commands
+        else if (programCommand === 'transactions') {
+          await initializeProgramDefaults(chatId);
+          await RedisService.getInstance().del(`transactions_state:${chatId}`);
+          await initializeTransactionsFlow(chatId, messageId);
+        }
+        else if (programCommand.startsWith('transactions_range_')) {
+          const range = programCommand.replace('transactions_range_', '');
+          await updateTransactionsRange(chatId, messageId, range);
+        }
+        else if (programCommand === 'transactions_fetch') {
+          await promptProgramIdForTransactions(chatId);
         }
         return;
       }

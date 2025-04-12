@@ -5,6 +5,7 @@ import { RedisService } from '../../../services/redisService';
 // Don't set TTL for program settings to make them persistent
 const PROGRAM_SETTINGS_KEY = 'program_settings';
 const TVL_SETTINGS_KEY = 'tvl_settings';
+const TRANSACTIONS_SETTINGS_KEY = 'transactions_settings';
 const REDIS_TTL = 60;
 
 // Display programs menu
@@ -16,6 +17,7 @@ export async function displayProgramsMenu(chatId: number, messageId?: number) {
     inline_keyboard: [
       [{ text: '📊 View Program Rankings', callback_data: '/sub-programs_ranking' }],
       [{ text: '💰 Check Total Value Locked (TVL)', callback_data: '/sub-programs_tvl' }],
+      [{ text: '📈 Transactions Data', callback_data: '/sub-programs_transactions' }],
       [{ text: '🔙 Back to Main Menu', callback_data: '/main' }]
     ]
 }
@@ -52,6 +54,17 @@ export async function initializeProgramDefaults(chatId: number) {
       resolution: '1d'
     };
     await redis.set(tvlKey, JSON.stringify(defaultTvlSettings));
+  }
+  
+  // Initialize Transactions settings if they don't exist
+  const transactionsKey = `${TRANSACTIONS_SETTINGS_KEY}:${chatId}`;
+  const existingTransactionsSettings = await redis.get(transactionsKey);
+  
+  if (!existingTransactionsSettings) {
+    const defaultTransactionsSettings = {
+      range: '1d'
+    };
+    await redis.set(transactionsKey, JSON.stringify(defaultTransactionsSettings));
   }
 }
 
@@ -259,6 +272,151 @@ export async function promptProgramIdForTvl(chatId: number) {
 
 /**
  * Fetch and display TVL data
+ */
+/**
+ * Initialize Transactions Data flow
+ */
+export async function initializeTransactionsFlow(chatId: number, messageId: number) {
+  const redis = RedisService.getInstance();
+  const settings = JSON.parse(await redis.get(`${TRANSACTIONS_SETTINGS_KEY}:${chatId}`) || '{}');
+  const selectedRange = settings.range || '1d';
+  
+  // Create buttons with the selected one having a checkmark
+  const rangeButtons = [
+    { 
+      text: `${selectedRange === '1d' ? '✅ ' : ''}1d`, 
+      callback_data: '/sub-programs_transactions_range_1d' 
+    },
+    { 
+      text: `${selectedRange === '7d' ? '✅ ' : ''}7d`, 
+      callback_data: '/sub-programs_transactions_range_7d' 
+    },
+    { 
+      text: `${selectedRange === '30d' ? '✅ ' : ''}30d`, 
+      callback_data: '/sub-programs_transactions_range_30d' 
+    }
+  ];
+
+  await updateMessage(TELEGRAM_BASE_URL, {
+    chat_id: chatId,
+    message_id: messageId,
+    text: `<b>📊 Transactions Data</b>\n\nSelect a time range and fetch transaction counts.\n\n<b>Current settings:</b>\n⏱️ <b>Range:</b> ${selectedRange}`,
+    parse_mode: 'HTML' as 'HTML',
+    reply_markup: {
+      inline_keyboard: [
+        rangeButtons,
+        [{ text: '🔄 Fetch Data', callback_data: '/sub-programs_transactions_fetch' }],
+        [{ text: '🔙 Back', callback_data: '/programs' }]
+      ]
+    }
+  });
+}
+
+/**
+ * Update transactions range
+ */
+export async function updateTransactionsRange(chatId: number, messageId: number, range: string) {
+  const redis = RedisService.getInstance();
+  const key = `${TRANSACTIONS_SETTINGS_KEY}:${chatId}`;
+  const currentSettings = JSON.parse(await redis.get(key) || '{}');
+  await redis.set(key, JSON.stringify({ ...currentSettings, range }));
+  
+  // Reinitialize the flow to show updated settings
+  await initializeTransactionsFlow(chatId, messageId);
+}
+
+/**
+ * Prompt user to enter program ID for transactions data
+ */
+export async function promptProgramIdForTransactions(chatId: number) {
+  const redis = RedisService.getInstance();
+  await redis.set(`transactions_state:${chatId}`, 'waiting_for_program_id', REDIS_TTL);
+  
+  await sendMessage(TELEGRAM_BASE_URL, {
+    chat_id: chatId,
+    text: '<b>🔍 Enter Program ID</b>\n\nPlease enter the <b>programId</b> to fetch transactions data for:\n\n<i>Example: Enter the unique identifier for the program</i>',
+    parse_mode: 'HTML' as 'HTML',
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '🔙 Cancel', callback_data: '/sub-programs_transactions' }]
+      ]
+    }
+  });
+}
+
+/**
+ * Fetch and display transactions data
+ */
+export async function fetchTransactionsData(chatId: number, programId: string) {
+  try {
+    const redis = RedisService.getInstance();
+    const settings = JSON.parse(await redis.get(`${TRANSACTIONS_SETTINGS_KEY}:${chatId}`) || '{}');
+    const range = settings.range || '1d';
+    
+    // Send loading message
+    await sendMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      text: `<b>⏳ Processing</b>\n\nFetching transactions data for program ID: <code>${programId}</code>\nRange: ${range}\n\nPlease wait...`,
+      parse_mode: 'HTML' as 'HTML'
+    });
+    
+    // Fetch transactions data
+    const response = await makeVybeRequest(`program/${programId}/transactions-count-ts?range=${range}`);
+    
+    if (!response || !response.data || response.data.length === 0) {
+      throw new Error('No transactions data found');
+    }
+    
+    // Prepare text content for file
+    const txtContent = response.data.map((entry: any) => 
+      `Time: ${new Date(entry.blockTime * 1000).toLocaleString()}\n` +
+      `Program ID: ${entry.programId}\n` +
+      `Transactions Count: ${entry.transactionsCount}\n` +
+      `-------------------`
+    ).join('\n\n');
+    
+    // Create and send file
+    const formData = new FormData();
+    formData.append('chat_id', chatId.toString());
+    formData.append('document', new Blob([txtContent], { type: 'text/plain' }), 'transactions_data.txt');
+    formData.append('caption', `📊 Transactions Data (${range}) for Program ID: ${programId}`);
+
+    await fetch(`${TELEGRAM_BASE_URL}/sendDocument`, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    // Send follow-up message with back button
+    await sendMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      text: '<b>📄 Transactions Data</b>\n\nYour transactions data file has been sent.',
+      parse_mode: 'HTML' as 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🔄 Fetch Again', callback_data: '/sub-programs_transactions_fetch' }],
+          [{ text: '⚙️ Change Settings', callback_data: '/sub-programs_transactions' }],
+          [{ text: '🔙 Programs Menu', callback_data: '/programs' }]
+        ]
+      }
+    });
+  } catch (error) {
+    console.error('Error in fetchTransactionsData:', error);
+    await sendMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      text: '<b>❌ Error</b>\n\nUnable to fetch transactions data. Please verify the program ID and try again.',
+      parse_mode: 'HTML' as 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🔄 Try Again', callback_data: '/sub-programs_transactions_fetch' }],
+          [{ text: '🔙 Back', callback_data: '/sub-programs_transactions' }]
+        ]
+      }
+    });
+  }
+}
+
+/**
+ * Fetch TVL data
  */
 export async function fetchTvlData(chatId: number, programId: string) {
   try {
