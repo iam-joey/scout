@@ -6,6 +6,7 @@ import { startNftOwnersSearch } from './maincommands/nftowners';
 import { displayProgramsMenu, initializeRankingFlow, handleSetLimit, showIntervalOptions, updateInterval, fetchRankings, initializeProgramDefaults, initializeTvlFlow, promptTvlResolution, promptProgramIdForTvl, initializeTransactionsFlow, updateTransactionsRange, promptProgramIdForTransactions } from './maincommands/programs';
 import { initializeProgramDetailsFlow, promptProgramIdForDetails } from './maincommands/programDetails';
 import { initializeInstructionsFlow, promptProgramIdForInstructions, promptInstructionsRange, updateInstructionsType } from './maincommands/instructionsData';
+import { initializeActiveUsersFlow, promptProgramIdForActiveUsers, promptActiveUsersRange, updateActiveUsersType } from './maincommands/activeUsersData';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -581,6 +582,22 @@ export const handleCallback = async (
         else if (programCommand.startsWith('instructions_type_')) {
           const type = programCommand.replace('instructions_type_', '');
           await updateInstructionsType(chatId, messageId, type);
+        }
+        // Active Users Data related commands
+        else if (programCommand === 'activeusers') {
+          await initializeProgramDefaults(chatId);
+          await RedisService.getInstance().del(`activeusers_state:${chatId}`);
+          await initializeActiveUsersFlow(chatId, messageId);
+        }
+        else if (programCommand === 'activeusers_fetch') {
+          await promptProgramIdForActiveUsers(chatId);
+        }
+        else if (programCommand === 'activeusers_range') {
+          await promptActiveUsersRange(chatId);
+        }
+        else if (programCommand.startsWith('activeusers_type_')) {
+          const type = programCommand.replace('activeusers_type_', '');
+          await updateActiveUsersType(chatId, messageId, type);
         }
         return;
       }

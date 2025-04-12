@@ -16,6 +16,7 @@ import { searchNftOwners } from './maincommands/nftowners';
 import { updateLimit, updateTvlResolution, fetchTvlData, fetchTransactionsData } from './maincommands/programs';
 import { fetchProgramDetails } from './maincommands/programDetails';
 import { fetchInstructionsData, updateInstructionsRange } from './maincommands/instructionsData';
+import { fetchActiveUsersData, updateActiveUsersRange } from './maincommands/activeUsersData';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
@@ -218,6 +219,7 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
     const transactionsState = await redis.get(`transactions_state:${userId}`);
     const programDetailsState = await redis.get(`program_details_state:${userId}`);
     const instructionsState = await redis.get(`instructions_state:${userId}`);
+    const activeUsersState = await redis.get(`activeusers_state:${userId}`);
 
     // Handle commands and states
     switch (messageText) {
@@ -275,26 +277,43 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
         else if (tvlState === 'waiting_for_program_id') {
           console.log("tvlState", tvlState);
           await fetchTvlData(chatId, messageText);
+          await RedisService.getInstance().del(`tvl_state:${chatId}`);
         }
         // Handle Transactions program ID input
         else if (transactionsState === 'waiting_for_program_id') {
           console.log("transactionsState", transactionsState);
           await fetchTransactionsData(chatId, messageText);
+          await RedisService.getInstance().del(`transactions_state:${chatId}`);
+          
         }
         // Handle Program Details program ID input
         else if (programDetailsState === 'waiting_for_program_id') {
           console.log("programDetailsState", programDetailsState);
           await fetchProgramDetails(chatId, messageText);
+          await RedisService.getInstance().del(`program_details_state:${chatId}`);
         }
         // Handle Instructions Data program ID input
         else if (instructionsState === 'waiting_for_program_id') {
           console.log("instructionsState", instructionsState);
           await fetchInstructionsData(chatId, messageText);
+          await RedisService.getInstance().del(`instructions_state:${chatId}`);
         }
         // Handle Instructions Data range input
         else if (instructionsState === 'waiting_for_range') {
           console.log("instructionsState", instructionsState);
           await updateInstructionsRange(chatId, messageText);
+          
+        }
+        // Handle Active Users Data program ID input
+        else if (activeUsersState === 'waiting_for_program_id') {
+          console.log("activeUsersState", activeUsersState);
+          await fetchActiveUsersData(chatId, messageText);
+          await RedisService.getInstance().del(`activeusers_state:${chatId}`);
+        }
+        // Handle Active Users Data range input
+        else if (activeUsersState === 'waiting_for_range') {
+          console.log("activeUsersState", activeUsersState);
+          await updateActiveUsersRange(chatId, messageText);
         }
         // Handle unknown commands
         else {

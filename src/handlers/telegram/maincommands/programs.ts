@@ -7,6 +7,7 @@ const PROGRAM_SETTINGS_KEY = 'program_settings';
 const TVL_SETTINGS_KEY = 'tvl_settings';
 const TRANSACTIONS_SETTINGS_KEY = 'transactions_settings';
 const INSTRUCTIONS_SETTINGS_KEY = 'instructions_settings';
+const ACTIVEUSERS_SETTINGS_KEY = 'activeusers_settings';
 const REDIS_TTL = 60;
 
 // Display programs menu
@@ -20,6 +21,7 @@ export async function displayProgramsMenu(chatId: number, messageId?: number) {
       [{ text: '💰 Check Total Value Locked (TVL)', callback_data: '/sub-programs_tvl' }],
       [{ text: '📈 Transactions Data', callback_data: '/sub-programs_transactions' }],
       [{ text: '🔄 Instructions Data', callback_data: '/sub-programs_instructions' }],
+      [{ text: '👥 Active Users', callback_data: '/sub-programs_activeusers' }],
       [{ text: '🔍 Program Details', callback_data: '/sub-programs_details' }],
       [{ text: '🔙 Back to Main Menu', callback_data: '/main' }]
     ]
@@ -80,6 +82,18 @@ export async function initializeProgramDefaults(chatId: number) {
       type: 'day' // 'day' or 'hour'
     };
     await redis.set(instructionsKey, JSON.stringify(defaultInstructionsSettings));
+  }
+  
+  // Initialize Active Users settings if they don't exist
+  const activeUsersKey = `${ACTIVEUSERS_SETTINGS_KEY}:${chatId}`;
+  const existingActiveUsersSettings = await redis.get(activeUsersKey);
+  
+  if (!existingActiveUsersSettings) {
+    const defaultActiveUsersSettings = {
+      range: '1d',
+      type: 'day' // 'day' or 'hour'
+    };
+    await redis.set(activeUsersKey, JSON.stringify(defaultActiveUsersSettings));
   }
 }
 
