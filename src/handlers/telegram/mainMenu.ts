@@ -25,7 +25,8 @@ export async function displayMainMenu(
           { text: '📈 PnL Overview', callback_data: '/walletPnl' }
         ],
         [
-          { text: '🔖 Labeled Accounts', callback_data: '/knownaccounts' }
+          { text: '🔖 Labeled Accounts', callback_data: '/knownaccounts' },
+          { text: '🎨 NFT Owners', callback_data: '/nftowners' }
         ]
       ]
     }

@@ -12,6 +12,7 @@ import {
 } from '../../utils/helpers';
 import { displayMainMenu } from './mainMenu';
 import { searchAddress } from './maincommands/knownaccounts';
+import { searchNftOwners } from './maincommands/nftowners';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
@@ -208,6 +209,7 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
     const redis = RedisService.getInstance();
     const userState = await redis.get(`userState-${userId}`);
     const searchState = await redis.get(`known_accounts_search:${userId}`);
+    const nftSearchState = await redis.get(`nft_owners_search:${userId}`);
 
     // Handle commands and states
     switch (messageText) {
@@ -241,6 +243,17 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
           const redis = RedisService.getInstance();
           await redis.del(`known_accounts_search:${chatId}`);
           await searchAddress(chatId, messageText);
+        }
+        // Handle NFT owners search
+        else if (nftSearchState === 'waiting_for_address') {
+          console.log("nftSearchState");
+          if (!isValidSolanaAddress(messageText)) {
+            await sendErrorMessage(baseUrl, chatId, 'Invalid NFT collection address. Please enter a valid Solana address.');
+            return;
+          }
+          const redis = RedisService.getInstance();
+          await redis.del(`nft_owners_search:${chatId}`);
+          await searchNftOwners(chatId, messageText);
         }
         // Handle unknown commands
         else {

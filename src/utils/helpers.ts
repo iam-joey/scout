@@ -194,8 +194,8 @@ export const makeVybeRequest = async (
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-
-    return response.json();
+    const data=await response.json();
+    return data;
   } catch (error) {
     console.error('Error making Vybe request:', error);
     throw error;

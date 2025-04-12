@@ -123,7 +123,7 @@ export async function searchAddress(chatId: number, address: string) {
     console.error('Error in searchAddress:', error);
     await sendMessage(TELEGRAM_BASE_URL, {
       chat_id: chatId,
-      text: 'Error searching for the address. Please try again.',
+      text: 'Address not found.',
       reply_markup: {
         inline_keyboard: [
           [{ text: '🔍 Try Again', callback_data: '/sub-knownaccounts_search' }],

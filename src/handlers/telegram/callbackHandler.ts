@@ -2,6 +2,7 @@ import { RedisService } from '../../services/redisService';
 import type { TelegramWebHookCallBackQueryPayload } from '../../types/telegram';
 import { TELEGRAM_BASE_URL } from '../../utils/constant';
 import { knownAccounts, handleKnownAccountsRequest, startSearch } from './maincommands/knownaccounts';
+import { startNftOwnersSearch } from './maincommands/nftowners';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -12,7 +13,6 @@ import {
 } from '../../utils/helpers';
 import { balances } from './maincommands/balances';
 import { displayMainMenu as displayMainMenuFromMain } from './mainMenu';
-import { redis } from 'bun';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
@@ -461,6 +461,8 @@ export const handleCallback = async (
         const label = subCommand.replace('knownaccounts_', '');
         if (label === 'search') {
           await RedisService.getInstance().del(`userState-${userId}`);
+          await RedisService.getInstance().del(`known_accounts_search:${userId}`);
+          await RedisService.getInstance().del(`nft_owners_search:${userId}`);
           await startSearch(chatId, messageId);
         } else {
           await handleKnownAccountsRequest(chatId, messageId, label);
@@ -516,6 +518,12 @@ export const handleCallback = async (
         break;
       case '/knownaccounts':
         await knownAccounts(chatId, messageId);
+        break;
+      case '/nftowners':
+        await RedisService.getInstance().del(`userState-${userId}`);
+        await RedisService.getInstance().del(`nft_owners_search:${chatId}`);
+        await RedisService.getInstance().del(`known_accounts_search:${userId}`);
+        await startNftOwnersSearch(chatId, messageId);
         break;
       default:
         console.log('Unknown callback:', callbackData);
