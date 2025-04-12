@@ -29,7 +29,8 @@ export async function displayMainMenu(
           { text: '🎨 NFT Owners', callback_data: '/nftowners' }
         ],
         [
-          { text: '📁 Programs Data', callback_data: '/programs' }
+          { text: '📁 Programs Data', callback_data: '/programs' },
+          { text: '💸 Tokens', callback_data: '/tokens' }
         ]
       ]
     }

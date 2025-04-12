@@ -8,6 +8,7 @@ import { initializeProgramDetailsFlow, promptProgramIdForDetails } from './mainc
 import { initializeInstructionsFlow, promptProgramIdForInstructions, promptInstructionsRange, updateInstructionsType } from './maincommands/instructionsData';
 import { initializeActiveUsersFlow, promptProgramIdForActiveUsers, promptActiveUsersRange, updateActiveUsersType } from './maincommands/activeUsersData';
 import { initializeFindActiveUsersFlow, promptProgramIdForFindActiveUsers, promptFindActiveUsersLimit, promptFindActiveUsersDays } from './maincommands/findActiveUsersData';
+import { displayTokensMenu, promptTokenMintAddress } from './maincommands/tokens';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -508,6 +509,15 @@ export const handleCallback = async (
         return;
       }
 
+      if(subCommand.startsWith('tokens_')) {
+        const tokenCommand = subCommand.replace('tokens_', '');
+        
+        if (tokenCommand === 'details_fetch') {
+          await promptTokenMintAddress(chatId);
+        }
+        return;
+      }
+      
       if(subCommand.startsWith('programs_')) {
         const programCommand = subCommand.replace('programs_', '');
         
@@ -642,6 +652,9 @@ export const handleCallback = async (
         break;
       case '/programs':
         await displayProgramsMenu(chatId, messageId);
+        break;
+      case '/tokens':
+        await displayTokensMenu(chatId, messageId);
         break;
       default:
         console.log('Unknown callback:', callbackData);
