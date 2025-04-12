@@ -70,7 +70,7 @@ export async function sendErrorMessage(
       inline_keyboard: [
         [
           {
-            text: 'Back to main menu',
+            text: ' 🔙 Main Menu',
             callback_data: callbackData || '/main',
           },
         ],
@@ -92,7 +92,7 @@ export const formatWalletPnlHtml = (data: any, resolution: string, page: number 
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [
-          [{ text: 'Back to main menu', callback_data: '/main' }],
+          [{ text: ' 🔙 Main Menu', callback_data: '/main' }],
         ],
       },
     };
@@ -161,7 +161,7 @@ export const formatWalletPnlHtml = (data: any, resolution: string, page: number 
     reply_markup: {
       inline_keyboard: [
         ...(tokenMetrics.length > 0 ? [paginationButtons] : []),
-        [{ text: 'Back to main menu', callback_data: '/main' }],
+        [{ text: ' 🔙 Main Menu', callback_data: '/main' }],
       ],
     },
     disable_web_page_preview: true,
@@ -290,7 +290,7 @@ ${logoUrl}
         paginationButtons,
         [
           {
-            text: 'Back to main menu',
+            text: ' 🔙 Main Menu',
             callback_data: '/main',
           },
         ],
@@ -360,7 +360,7 @@ export const formatTokenBalanceHtml = (
         paginationButtons,
         [
           {
-            text: 'Back to main menu',
+            text: ' 🔙 Main Menu',
             callback_data: '/main',
           },
         ],

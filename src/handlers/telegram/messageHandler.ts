@@ -9,9 +9,8 @@ import {
   makeVybeRequest,
   sendErrorMessage,
   sendMessage,
-  updateMessage,
 } from '../../utils/helpers';
-import { sendMainMenu } from './mainMenu';
+import { displayMainMenu } from './mainMenu';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
@@ -154,7 +153,7 @@ async function handleWalletPnlResponse(
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [{ text: 'Back to main menu', callback_data: '/main' }],
+            [{ text: ' main menu', callback_data: '/main' }],
           ],
         },
       });
@@ -190,11 +189,7 @@ async function handleWalletPnlResponse(
  * Handle welcome message
  */
 async function handleWelcomeMessage(chatId: number, baseUrl: string): Promise<void> {
-  await sendMessage(baseUrl, {
-    chat_id: chatId,
-    text: 'Welcome to the bot!',
-  });
-  await sendMainMenu(chatId);
+  await displayMainMenu(chatId, undefined, baseUrl);
 }
 
 /**
@@ -206,7 +201,6 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
     const chatId = payload.message.chat.id;
     const userId = payload.message.from.id;
     const messageText = payload.message.text || '';
-    const messageId = payload.message.message_id;
     const baseUrl = TELEGRAM_BASE_URL;
     
     // Get user state from Redis
@@ -218,7 +212,7 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
       case '/start':
         await handleWelcomeMessage(chatId, baseUrl);
         break;
-        
+      
       default:
         // Handle NFT balance request
         if (userState === 'nftBalances') {

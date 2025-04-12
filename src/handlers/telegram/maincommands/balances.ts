@@ -6,13 +6,18 @@ export async function balances(chatId: number, messageId: number) {
     await updateMessage(TELEGRAM_BASE_URL, {
       chat_id: chatId,
       message_id: messageId,
-      text: 'here You can View balances of all your Nfts and Tokens',
+      text: '📊 View your wallet balances:',
       reply_markup: {
         inline_keyboard: [
           [
-            { text: 'NFT', callback_data: '/sub-nftBalances' },
-            { text: 'TOKEN', callback_data: '/sub-tokenBalances' },
+            { text: '🖼️ NFT Balances', callback_data: '/sub-nftBalances' },
           ],
+          [            { text: '💰 Token Balances', callback_data: '/sub-tokenBalances' },
+          ],
+          [{
+            text: '🔙  Main Menu',
+            callback_data: '/main',
+          }]
         ],
       },
     });

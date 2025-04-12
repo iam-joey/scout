@@ -1,7 +1,9 @@
 import { TELEGRAM_BASE_URL, VYBE_API_BASE_URL } from '../../../utils/constant';
 import { makeVybeRequest, updateMessage } from '../../../utils/helpers';
-// Using built-in FormData instead of form-data package
+import { RedisService } from '../../../services/redisService';
 
+// Constants
+const REDIS_TTL = 180000; // 3 minutes
 
 /**
  * Display known accounts categories for selection
@@ -11,31 +13,31 @@ export async function knownAccounts(chatId: number, messageId: number) {
     await updateMessage(TELEGRAM_BASE_URL, {
       chat_id: chatId,
       message_id: messageId,
-      text: 'Select a category of known accounts:',
+      text: '🔍 Select a category of known accounts:',
       reply_markup: {
         inline_keyboard: [
           [
-            { text: 'CEX', callback_data: '/sub-knownaccounts_CEX' },
-            { text: 'dApp', callback_data: '/sub-knownaccounts_dApp' },
-            { text: 'Treasury', callback_data: '/sub-knownaccounts_Treasury' },
+            { text: '🏦 CEX', callback_data: '/sub-knownaccounts_CEX' },
+            { text: '🎮 dApp', callback_data: '/sub-knownaccounts_dApp' },
+            { text: '💰 Treasury', callback_data: '/sub-knownaccounts_Treasury' },
           ],
           [
-            { text: 'Hacker', callback_data: '/sub-knownaccounts_Hacker' },
-            { text: 'Bridge', callback_data: '/sub-knownaccounts_Bridge' },
-            { text: 'MM', callback_data: '/sub-knownaccounts_MM' },
+            { text: '🔒 Hacker', callback_data: '/sub-knownaccounts_Hacker' },
+            { text: '🌉 Bridge', callback_data: '/sub-knownaccounts_Bridge' },
+            { text: '🤖 MM', callback_data: '/sub-knownaccounts_MM' },
           ],
           [
-            { text: 'Pool', callback_data: '/sub-knownaccounts_Pool' },
-            { text: 'DeFi', callback_data: '/sub-knownaccounts_DeFi' },
-            { text: 'DAO', callback_data: '/sub-knownaccounts_DAO' },
+            { text: '💧 Pool', callback_data: '/sub-knownaccounts_Pool' },
+            { text: '🔄 DeFi', callback_data: '/sub-knownaccounts_DeFi' },
+            { text: '👥 DAO', callback_data: '/sub-knownaccounts_DAO' },
           ],
           [
-            { text: 'VC', callback_data: '/sub-knownaccounts_VC' },
-            { text: 'NFT', callback_data: '/sub-knownaccounts_NFT' },
-            { text: 'CLMM', callback_data: '/sub-knownaccounts_CLMM' },
+            { text: '💼 VC', callback_data: '/sub-knownaccounts_VC' },
+            { text: '🖼️ NFT', callback_data: '/sub-knownaccounts_NFT' },
+            { text: '🔄 CLMM', callback_data: '/sub-knownaccounts_CLMM' },
           ],
           [
-            { text: 'Back to main menu', callback_data: '/main' },
+            { text: '🔙 Main Menu', callback_data: '/main' },
           ],
         ],
       },
@@ -45,6 +47,7 @@ export async function knownAccounts(chatId: number, messageId: number) {
     throw error;
   }
 }
+
 
 /**
  * Handle known accounts request with specific label
@@ -75,8 +78,8 @@ export async function handleKnownAccountsRequest(
         text: `No ${label} accounts found.`,
         reply_markup: {
           inline_keyboard: [
-            [{ text: 'Back to Known Accounts', callback_data: '/knownaccounts' }],
-            [{ text: 'Back to Main Menu', callback_data: '/main' }],
+            [{ text: '🔙 Labeller Accounts', callback_data: '/knownaccounts' }],
+            [{ text: '🔙 Main Menu', callback_data: '/main' }],
           ],
         },
       });
@@ -142,8 +145,8 @@ export async function handleKnownAccountsRequest(
         text: `Use these buttons to navigate:`,
         reply_markup: {
           inline_keyboard: [
-            [{ text: 'Back to Known Accounts', callback_data: '/knownaccounts' }],
-            [{ text: 'Back to Main Menu', callback_data: '/main' }],
+            [{ text: '🔙 Labelled Accounts', callback_data: '/knownaccounts' }],
+            [{ text: '🔙 Main Menu', callback_data: '/main' }],
           ],
         },
       }),
@@ -156,10 +159,12 @@ export async function handleKnownAccountsRequest(
       text: `Error fetching ${label} accounts. Please try again later.`,
       reply_markup: {
         inline_keyboard: [
-          [{ text: 'Back to Known Accounts', callback_data: '/knownaccounts' }],
-          [{ text: 'Back to Main Menu', callback_data: '/main' }],
+          [{ text: '🔙 Labelled Accounts', callback_data: '/knownaccounts' }],
+          [{ text: '🔙 Main Menu', callback_data: '/main' }],
         ],
       },
     });
   }
 }
+
+

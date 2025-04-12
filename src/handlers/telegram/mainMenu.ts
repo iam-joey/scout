@@ -1,23 +1,42 @@
 import { TELEGRAM_BASE_URL } from '../../utils/constant';
-import { sendMessage } from '../../utils/helpers';
+import { sendMessage, updateMessage } from '../../utils/helpers';
 
-export async function sendMainMenu(chatId: number) {
+/**
+ * Display the main menu with welcome message and buttons
+ */
+export async function displayMainMenu(
+  chatId: number,
+  messageId?: number,
+  baseUrl: string = TELEGRAM_BASE_URL
+): Promise<void> {
+  const welcomeMessage = `
+  ✨ Welcome to VybeSniper Bot!
+  
+  🔍 Your all-in-one tool for checking Solana wallet balances and analytics.
+  
+  `; 
   const payload = {
     chat_id: chatId,
-    text: '🔓 Welcome to VybeSniper',
+    text: welcomeMessage,
     reply_markup: {
       inline_keyboard: [
         [
-          { text: 'Balances', callback_data: '/balances' },
+          { text: '💰 Wallet Balances', callback_data: '/balances' },
+          { text: '📈 PnL Overview', callback_data: '/walletPnl' }
         ],
         [
-          { text: 'Wallet PnL', callback_data: '/walletPnl' },
-        ],
-        [
-          { text: 'Known Accounts', callback_data: '/knownaccounts' },
-        ],
-      ],
-    },
+          { text: '🔖 Labeled Accounts', callback_data: '/knownaccounts' }
+        ]
+      ]
+    }
   };
-  await sendMessage(TELEGRAM_BASE_URL, payload);
+
+  if (messageId) {
+    await updateMessage(baseUrl, {
+      ...payload,
+      message_id: messageId
+    });
+  } else {
+    await sendMessage(baseUrl, payload);
+  }
 }

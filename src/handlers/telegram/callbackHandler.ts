@@ -12,11 +12,11 @@ import {
   updateMessage,
 } from '../../utils/helpers';
 import { balances } from './maincommands/balances';
+import { displayMainMenu as displayMainMenuFromMain } from './mainMenu';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
 const REDIS_TTL = 180000; // 3 minutes
-const PNL_RESOLUTIONS = ['1d', '7d', '30d'];
 
 /**
  * Handle NFT balance request
@@ -32,7 +32,7 @@ async function handleNftBalanceRequest(
   await updateMessage(baseUrl, {
     chat_id: chatId,
     message_id: messageId,
-    text: 'Please enter the wallet address below you want to view the balances of',
+    text: 'Please enter the wallet address below to check NFT balances:',
   });
 }
 
@@ -50,7 +50,7 @@ async function handleTokenBalanceRequest(
   await updateMessage(baseUrl, {
     chat_id: chatId,
     message_id: messageId,
-    text: 'Please enter the wallet address below you want to view the balances of',
+    text: 'Please enter the wallet address below to check token balances:',
   });
 }
 
@@ -71,12 +71,12 @@ async function handleWalletPnlRequest(
     text: 'Please select the time resolution:',
     reply_markup: {
       inline_keyboard: [
-        PNL_RESOLUTIONS.map(resolution => ({
-          text: resolution.toUpperCase(),
+        ['1d', '7d', '30d'].map(resolution => ({
+          text: `📅 ${resolution.toUpperCase()}`,
           callback_data: `/sub-pnl_${resolution}`,
         })),
         [{
-          text: 'Back to main menu',
+          text: '🔙 Main Menu',
           callback_data: '/main',
         }],
       ],
@@ -105,6 +105,33 @@ async function handleWalletPnlResolution(
 }
 
 /**
+ * Create pagination buttons for a given page
+ * @param currentPage - Current page number
+ * @param totalPages - Total number of pages
+ * @param callbackPrefix - Prefix for callback data (e.g., 'sub-pnl_page_')
+ */
+function createPaginationButtons(
+  currentPage: number,
+  totalPages: number,
+  callbackPrefix: string
+): { text: string; callback_data: string }[] {
+  const buttons = [];
+  if (currentPage > 0) {
+    buttons.push({
+      text: '⬅️ Previous',
+      callback_data: `${callbackPrefix}${currentPage - 1}`,
+    });
+  }
+  if (currentPage < totalPages) {
+    buttons.push({
+      text: '➡️ Next',
+      callback_data: `${callbackPrefix}${currentPage + 1}`,
+    });
+  }
+  return buttons;
+}
+
+/**
  * Handle wallet PnL pagination
  */
 async function handleWalletPnlPagination(
@@ -123,23 +150,28 @@ async function handleWalletPnlPagination(
       chat_id: chatId,
       message_id: messageId,
       text: 'Invalid wallet address or resolution',
+      reply_markup: {
+        inline_keyboard: [
+          [{
+            text: '🔙 Wallet PnL',
+            callback_data: '/walletPnl',
+          }],
+          [{
+            text: '🔙 Main Menu',
+            callback_data: '/main',
+          }],
+        ],
+      },
     });
     return;
   }
-  
-  try {
-    // Validate page number
-    if (page < 0) {
-      page = 0;
-    }
 
-    // First, get the summary data to check total trades
-    let data = await makeVybeRequest(
+  try {
+    const data = await makeVybeRequest(
       `account/pnl/${walletAddress}?resolution=${resolution}&limit=5&page=${page}`,
       'GET',
     );
 
-    // If no data or empty token metrics, show appropriate message
     if (!data || !data.summary) {
       await updateMessage(baseUrl, {
         chat_id: chatId,
@@ -147,42 +179,47 @@ async function handleWalletPnlPagination(
         text: 'No trading data available for this wallet.',
         reply_markup: {
           inline_keyboard: [
-            [{ text: 'Back to main menu', callback_data: '/main' }],
+            [{
+              text: '🔙  Wallet PnL',
+              callback_data: '/walletPnl',
+            }],
+            [{
+              text: '🔙 Main Menu',
+              callback_data: '/main',
+            }],
           ],
         },
       });
       return;
     }
 
-    // Check if we're trying to access a page beyond what's available
-    const totalTokenCount = data.totalTokenCount || (data.summary?.uniqueTokensTraded || 0);
-    const totalPages = Math.max(1, Math.ceil(totalTokenCount / 5));
-    
-    if (page >= totalPages && page > 0) {
-      // We're trying to access a page that doesn't exist, go back to the last valid page
-      page = totalPages - 1;
-      // Fetch the data again with the corrected page
-      const newData = await makeVybeRequest(
-        `account/pnl/${walletAddress}?resolution=${resolution}&limit=5&page=${page}`,
-        'GET',
-      );
-      // Reassign data with the new data
-      data = newData;
-    }
-
-    // If we have data but no token metrics for this page
-    if (!data.tokenMetrics || data.tokenMetrics.length === 0) {
-      // Still show the summary but indicate no tokens for this page
-      data.tokenMetrics = [];
-    }
-    
     const formattedMessage = formatWalletPnlHtml(data, resolution, page);
+    const currentPage = page;
+    const totalPages = Math.ceil(data.summary.totalTrades / 5) - 1;
+    const paginationButtons = createPaginationButtons(currentPage, totalPages, '/sub-pnl_page_');
 
     await updateMessage(baseUrl, {
       chat_id: chatId,
       message_id: messageId,
       text: formattedMessage.text,
-      reply_markup: formattedMessage.reply_markup,
+      reply_markup: {
+        inline_keyboard: [
+          paginationButtons.length > 0 ? [
+            ...paginationButtons.map(button => ({
+              text: button.text,
+              callback_data: button.callback_data
+            }))
+          ] : [],
+          [{
+            text: '🔙  Wallet PnL',
+            callback_data: '/walletPnl'
+          }],
+          [{
+            text: '🔙 Main Menu',
+            callback_data: '/main'
+          }]
+        ].filter(Boolean)
+      },
       parse_mode: 'HTML',
       disable_web_page_preview: true,
     });
@@ -192,6 +229,18 @@ async function handleWalletPnlPagination(
       chat_id: chatId,
       message_id: messageId,
       text: 'Error fetching wallet PnL. Please try again later.',
+      reply_markup: {
+        inline_keyboard: [
+          [{
+            text: '🔙  Wallet PnL',
+            callback_data: '/walletPnl',
+          }],
+          [{
+            text: '🔙 Main Menu',
+            callback_data: '/main',
+          }],
+        ],
+      },
     });
   }
 }
@@ -214,34 +263,55 @@ async function handleNftBalancePagination(
       chat_id: chatId,
       message_id: messageId,
       text: 'Invalid wallet address',
+      reply_markup: {
+        inline_keyboard: [
+          [{
+            text: '🔙  NFT Balances',
+            callback_data: '/balances',
+          }],
+          [{
+            text: '🔙 Main Menu',
+            callback_data: '/main',
+          }],
+        ],
+      },
     });
     return;
   }
-  
+
   try {
     const data = await makeVybeRequest(
       `account/nft-balance/${walletAddress}?limit=${TOKENS_PER_PAGE}&page=${page}`,
       'GET',
     );
-    
-    const totalPages = Math.ceil(data.totalNftCollectionCount / TOKENS_PER_PAGE);
-    
-    if (page >= totalPages) {
-      await updateMessage(baseUrl, {
-        chat_id: chatId,
-        message_id: messageId,
-        text: `Invalid page number. Maximum page is ${totalPages - 1}`,
-      });
-      return;
-    }
-    
-    const formattedMessage = formatNftSummaryHtml(data, page);
+
+    const formattedMessage = formatNftSummaryHtml(data);
+    const currentPage = page;
+    const totalPages = Math.ceil(data.total / TOKENS_PER_PAGE) - 1;
+    const paginationButtons = createPaginationButtons(currentPage, totalPages, '/sub-nft_balance_page_');
 
     await updateMessage(baseUrl, {
       chat_id: chatId,
       message_id: messageId,
       text: formattedMessage.text,
-      reply_markup: formattedMessage.reply_markup,
+      reply_markup: {
+        inline_keyboard: [
+          paginationButtons.length > 0 ? [
+            ...paginationButtons.map(button => ({
+              text: button.text,
+              callback_data: button.callback_data
+            }))
+          ] : [],
+          [{
+            text: '🔙  NFT Balances',
+            callback_data: '/balances'
+          }],
+          [{
+            text: '🔙 Main Menu',
+            callback_data: '/main'
+          }]
+        ].filter(Boolean)
+      },
       parse_mode: 'HTML',
       disable_web_page_preview: true,
     });
@@ -251,6 +321,18 @@ async function handleNftBalancePagination(
       chat_id: chatId,
       message_id: messageId,
       text: 'Error fetching NFT balances. Please try again later.',
+      reply_markup: {
+        inline_keyboard: [
+          [{
+            text: '🔙  NFT Balances',
+            callback_data: '/balances',
+          }],
+          [{
+            text: '🔙 Main Menu',
+            callback_data: '/main',
+          }],
+        ],
+      },
     });
   }
 }
@@ -273,34 +355,55 @@ async function handleTokenBalancePagination(
       chat_id: chatId,
       message_id: messageId,
       text: 'Invalid wallet address',
+      reply_markup: {
+        inline_keyboard: [
+          [{
+            text: '🔙  Token Balances',
+            callback_data: '/balances',
+          }],
+          [{
+            text: '🔙 Main Menu',
+            callback_data: '/main',
+          }],
+        ],
+      },
     });
     return;
   }
-  
+
   try {
     const data = await makeVybeRequest(
       `account/token-balance/${walletAddress}?limit=${TOKENS_PER_PAGE}&page=${page}`,
       'GET',
     );
-    
-    const totalPages = Math.ceil(data.totalTokenCount / TOKENS_PER_PAGE);
-    
-    if (page >= totalPages) {
-      await updateMessage(baseUrl, {
-        chat_id: chatId,
-        message_id: messageId,
-        text: `Invalid page number. Maximum page is ${totalPages - 1}`,
-      });
-      return;
-    }
-    
-    const formattedMessage = formatTokenBalanceHtml(data, page);
+
+    const formattedMessage = formatTokenBalanceHtml(data);
+    const currentPage = page;
+    const totalPages = Math.ceil(data.total / TOKENS_PER_PAGE) - 1;
+    const paginationButtons = createPaginationButtons(currentPage, totalPages, '/sub-token_balance_page_');
 
     await updateMessage(baseUrl, {
       chat_id: chatId,
       message_id: messageId,
       text: formattedMessage.text,
-      reply_markup: formattedMessage.reply_markup,
+      reply_markup: {
+        inline_keyboard: [
+          paginationButtons.length > 0 ? [
+            ...paginationButtons.map(button => ({
+              text: button.text,
+              callback_data: button.callback_data
+            }))
+          ] : [],
+          [{
+            text: '🔙  Token Balances',
+            callback_data: '/balances'
+          }],
+          [{
+            text: '🔙 Main Menu',
+            callback_data: '/main'
+          }]
+        ].filter(Boolean)
+      },
       parse_mode: 'HTML',
       disable_web_page_preview: true,
     });
@@ -310,6 +413,18 @@ async function handleTokenBalancePagination(
       chat_id: chatId,
       message_id: messageId,
       text: 'Error fetching token balances. Please try again later.',
+      reply_markup: {
+        inline_keyboard: [
+          [{
+            text: '🔙  Token Balances',
+            callback_data: '/balances',
+          }],
+          [{
+            text: '🔙 Main Menu',
+            callback_data: '/main',
+          }],
+        ],
+      },
     });
   }
 }
@@ -322,107 +437,83 @@ async function displayMainMenu(
   messageId: number,
   baseUrl: string
 ): Promise<void> {
-  await updateMessage(baseUrl, {
-    chat_id: chatId,
-    message_id: messageId,
-    text: '🔓 Welcome to VybeSniper',
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: 'Balances', callback_data: '/balances' }, 
-        ],
-        [{ text: 'Wallet PnL', callback_data: '/walletPnl' },],
-        [{ text: 'Known Accounts', callback_data: '/knownaccounts' }],
-      ],
-    },
-  });
+  await displayMainMenuFromMain(chatId, messageId, baseUrl);
 }
 
 /**
  * Main callback handler for Telegram webhook callbacks
  */
 export const handleCallback = async (
-  payload: TelegramWebHookCallBackQueryPayload,
-) => {
+  payload: TelegramWebHookCallBackQueryPayload
+): Promise<void> => {
+  const callbackData = payload.callback_query.data;
+  const chatId = payload.callback_query.message.chat.id;
+  const messageId = payload.callback_query.message.message_id;
+  const userId = payload.callback_query.from.id;
+  const baseUrl = TELEGRAM_BASE_URL;
+  
   try {
-    // Extract common data from payload
-    const chatId = payload.callback_query.message.chat.id;
-    const userId = payload.callback_query.from.id;
-    const callbackData = payload.callback_query.data;
-    const messageId = payload.callback_query.message.message_id;
-    const baseUrl = TELEGRAM_BASE_URL;
-
     // Handle sub-commands
-    if (callbackData.startsWith('/sub-')) {
-      const subCommand = callbackData.substring(5);
+    if(callbackData.startsWith('/sub-')) {
+      const subCommand = callbackData.replace('/sub-', '');
       
-      // Handle NFT balances request
-      if (subCommand === 'nftBalances') {
-        await handleNftBalanceRequest(userId, chatId, messageId, baseUrl);
-        return;
-      }
-      
-      // Handle token balances request
-      if (subCommand === 'tokenBalances') {
-        await handleTokenBalanceRequest(userId, chatId, messageId, baseUrl);
-        return;
-      }
-      
-      // Handle known accounts request with label
-      if (subCommand.startsWith('knownaccounts_')) {
-        const label = subCommand.split('_')[1];
+      if(subCommand.startsWith('knownaccounts_')) {
+        const label = subCommand.replace('knownaccounts_', '');
         await handleKnownAccountsRequest(chatId, messageId, label);
         return;
       }
       
-      // Handle NFT balance pagination
-      if (subCommand.startsWith('nft_balance_page_')) {
+      if(subCommand === 'nftBalances') {
+        await handleNftBalanceRequest(userId, chatId, messageId, baseUrl);
+        return;
+      }
+      
+      if(subCommand === 'tokenBalances') {
+        await handleTokenBalanceRequest(userId, chatId, messageId, baseUrl);
+        return;
+      }
+      
+      if(subCommand.startsWith('nft_balance_page_')) {
         const page = Number(subCommand.split('_')[3]);
         await handleNftBalancePagination(userId, chatId, messageId, baseUrl, page);
         return;
       }
       
-      // Handle token balance pagination
-      if (subCommand.startsWith('token_balance_page_')) {
+      if(subCommand.startsWith('token_balance_page_')) {
         const page = Number(subCommand.split('_')[3]);
         await handleTokenBalancePagination(userId, chatId, messageId, baseUrl, page);
         return;
       }
 
-      // Handle wallet PnL pagination
-      if (subCommand.startsWith('pnl_page_')) {
+      if(subCommand.startsWith('pnl_page_')) {
         const page = Number(subCommand.split('_')[2]);
         await handleWalletPnlPagination(userId, chatId, messageId, baseUrl, page);
         return;
       }
-      console.log("inside the sub returning from here")
+      
       if(subCommand.startsWith('pnl_')){
-        console.log('Wallet PnL resolution selected:', callbackData);
         await handleWalletPnlResolution(userId, chatId, messageId, baseUrl, subCommand.split('_')[1]);
         return;
       }
       return;
     }
-    console.log('Main command received:', callbackData);
+
     // Handle main commands
-    switch (callbackData) {
-      case '/balances':
-        await balances(chatId, messageId);
-        break;
-        
+    switch(callbackData) {
       case '/main':
         await displayMainMenu(chatId, messageId, baseUrl);
         break;
-
+      case '/balances':
+        await balances(chatId, messageId);
+        break;
       case '/walletPnl':
         await handleWalletPnlRequest(userId, chatId, messageId, baseUrl);
         break;
-        
       case '/knownaccounts':
         await knownAccounts(chatId, messageId);
         break;
       default:
-        await sendErrorMessage(baseUrl, chatId, 'Invalid command');
+        console.log('Unknown callback:', callbackData);
         break;
     }
   } catch (error) {
