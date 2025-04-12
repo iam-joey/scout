@@ -7,6 +7,7 @@ import { displayProgramsMenu, initializeRankingFlow, handleSetLimit, showInterva
 import { initializeProgramDetailsFlow, promptProgramIdForDetails } from './maincommands/programDetails';
 import { initializeInstructionsFlow, promptProgramIdForInstructions, promptInstructionsRange, updateInstructionsType } from './maincommands/instructionsData';
 import { initializeActiveUsersFlow, promptProgramIdForActiveUsers, promptActiveUsersRange, updateActiveUsersType } from './maincommands/activeUsersData';
+import { initializeFindActiveUsersFlow, promptProgramIdForFindActiveUsers, promptFindActiveUsersLimit, promptFindActiveUsersDays } from './maincommands/findActiveUsersData';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -598,6 +599,21 @@ export const handleCallback = async (
         else if (programCommand.startsWith('activeusers_type_')) {
           const type = programCommand.replace('activeusers_type_', '');
           await updateActiveUsersType(chatId, messageId, type);
+        }
+        // Find Program Active Users related commands
+        else if (programCommand === 'findactiveusers') {
+          await initializeProgramDefaults(chatId);
+          await RedisService.getInstance().del(`findactiveusers_state:${chatId}`);
+          await initializeFindActiveUsersFlow(chatId, messageId);
+        }
+        else if (programCommand === 'findactiveusers_fetch') {
+          await promptProgramIdForFindActiveUsers(chatId);
+        }
+        else if (programCommand === 'findactiveusers_limit') {
+          await promptFindActiveUsersLimit(chatId);
+        }
+        else if (programCommand === 'findactiveusers_days') {
+          await promptFindActiveUsersDays(chatId);
         }
         return;
       }

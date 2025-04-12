@@ -17,6 +17,7 @@ import { updateLimit, updateTvlResolution, fetchTvlData, fetchTransactionsData }
 import { fetchProgramDetails } from './maincommands/programDetails';
 import { fetchInstructionsData, updateInstructionsRange } from './maincommands/instructionsData';
 import { fetchActiveUsersData, updateActiveUsersRange } from './maincommands/activeUsersData';
+import { fetchFindActiveUsersData, updateFindActiveUsersLimit, updateFindActiveUsersDays } from './maincommands/findActiveUsersData';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
@@ -220,6 +221,7 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
     const programDetailsState = await redis.get(`program_details_state:${userId}`);
     const instructionsState = await redis.get(`instructions_state:${userId}`);
     const activeUsersState = await redis.get(`activeusers_state:${userId}`);
+    const findActiveUsersState = await redis.get(`findactiveusers_state:${userId}`);
 
     // Handle commands and states
     switch (messageText) {
@@ -314,6 +316,22 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
         else if (activeUsersState === 'waiting_for_range') {
           console.log("activeUsersState", activeUsersState);
           await updateActiveUsersRange(chatId, messageText);
+        }
+        // Handle Find Program Active Users program ID input
+        else if (findActiveUsersState === 'waiting_for_program_id') {
+          console.log("findActiveUsersState", findActiveUsersState);
+          await fetchFindActiveUsersData(chatId, messageText);
+          await RedisService.getInstance().del(`findactiveusers_state:${chatId}`);
+        }
+        // Handle Find Program Active Users limit input
+        else if (findActiveUsersState === 'waiting_for_limit') {
+          console.log("findActiveUsersState", findActiveUsersState);
+          await updateFindActiveUsersLimit(chatId, messageText);
+        }
+        // Handle Find Program Active Users days input
+        else if (findActiveUsersState === 'waiting_for_days') {
+          console.log("findActiveUsersState", findActiveUsersState);
+          await updateFindActiveUsersDays(chatId, messageText);
         }
         // Handle unknown commands
         else {
