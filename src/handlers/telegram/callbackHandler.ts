@@ -4,6 +4,7 @@ import { TELEGRAM_BASE_URL } from '../../utils/constant';
 import { knownAccounts, handleKnownAccountsRequest, startSearch } from './maincommands/knownaccounts';
 import { startNftOwnersSearch } from './maincommands/nftowners';
 import { displayProgramsMenu, initializeRankingFlow, handleSetLimit, showIntervalOptions, updateInterval, fetchRankings, initializeProgramDefaults, initializeTvlFlow, promptTvlResolution, promptProgramIdForTvl, initializeTransactionsFlow, updateTransactionsRange, promptProgramIdForTransactions } from './maincommands/programs';
+import { initializeProgramDetailsFlow, promptProgramIdForDetails } from './maincommands/programDetails';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -554,6 +555,15 @@ export const handleCallback = async (
         }
         else if (programCommand === 'transactions_fetch') {
           await promptProgramIdForTransactions(chatId);
+        }
+        // Program Details related commands
+        else if (programCommand === 'details') {
+          await initializeProgramDefaults(chatId);
+          await RedisService.getInstance().del(`program_details_state:${chatId}`);
+          await initializeProgramDetailsFlow(chatId, messageId);
+        }
+        else if (programCommand === 'details_fetch') {
+          await promptProgramIdForDetails(chatId);
         }
         return;
       }

@@ -18,6 +18,7 @@ export async function displayProgramsMenu(chatId: number, messageId?: number) {
       [{ text: '📊 View Program Rankings', callback_data: '/sub-programs_ranking' }],
       [{ text: '💰 Check Total Value Locked (TVL)', callback_data: '/sub-programs_tvl' }],
       [{ text: '📈 Transactions Data', callback_data: '/sub-programs_transactions' }],
+      [{ text: '🔍 Program Details', callback_data: '/sub-programs_details' }],
       [{ text: '🔙 Back to Main Menu', callback_data: '/main' }]
     ]
 }

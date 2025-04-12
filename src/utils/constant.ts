@@ -1,4 +1,4 @@
-const VYBE_API_BASE_URL = 'https://api.vybenetwork.xyz';
+const   VYBE_API_BASE_URL = 'https://api.vybenetwork.xyz';
 const VYBE_API_KEY = process.env.VYBE_NETWORK_KEY!;
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
