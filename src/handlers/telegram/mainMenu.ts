@@ -27,6 +27,9 @@ export async function displayMainMenu(
         [
           { text: '🔖 Labeled Accounts', callback_data: '/knownaccounts' },
           { text: '🎨 NFT Owners', callback_data: '/nftowners' }
+        ],
+        [
+          { text: '📁 Programs Data', callback_data: '/programs' }
         ]
       ]
     }

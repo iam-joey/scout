@@ -3,6 +3,7 @@ import type { TelegramWebHookCallBackQueryPayload } from '../../types/telegram';
 import { TELEGRAM_BASE_URL } from '../../utils/constant';
 import { knownAccounts, handleKnownAccountsRequest, startSearch } from './maincommands/knownaccounts';
 import { startNftOwnersSearch } from './maincommands/nftowners';
+import { displayProgramsMenu, initializeRankingFlow, handleSetLimit, showIntervalOptions, updateInterval, fetchRankings, initializeProgramDefaults } from './maincommands/programs';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -502,6 +503,35 @@ export const handleCallback = async (
         await handleWalletPnlResolution(userId, chatId, messageId, baseUrl, subCommand.split('_')[1]);
         return;
       }
+
+      if(subCommand.startsWith('programs_')) {
+        const programCommand = subCommand.replace('programs_', '');
+        
+        if (programCommand === 'ranking') {
+          await initializeProgramDefaults(chatId);
+          await RedisService.getInstance().del(`program_ranking_state:${chatId}`);
+          await initializeRankingFlow(chatId, messageId);
+        } 
+        else if (programCommand === 'set_limit') {
+          await handleSetLimit(chatId);
+        } 
+        else if (programCommand === 'set_interval') {
+          await showIntervalOptions(chatId, messageId);
+        } 
+        else if (programCommand === 'interval_1d') {
+          await updateInterval(chatId, messageId, '1d');
+        } 
+        else if (programCommand === 'interval_7d') {
+          await updateInterval(chatId, messageId, '7d');
+        } 
+        else if (programCommand === 'interval_30d') {
+          await updateInterval(chatId, messageId, '30d');
+        } 
+        else if (programCommand === 'fetch') {
+          await fetchRankings(chatId, messageId);
+        }
+        return;
+      }
       return;
     }
 
@@ -524,6 +554,9 @@ export const handleCallback = async (
         await RedisService.getInstance().del(`nft_owners_search:${chatId}`);
         await RedisService.getInstance().del(`known_accounts_search:${userId}`);
         await startNftOwnersSearch(chatId, messageId);
+        break;
+      case '/programs':
+        await displayProgramsMenu(chatId, messageId);
         break;
       default:
         console.log('Unknown callback:', callbackData);
