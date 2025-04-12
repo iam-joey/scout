@@ -10,6 +10,7 @@ router.post('/webhook', async (req, res) => {
     const webhookData = TelegramWebhookSchema.parse(req.body);
 
     if ('message' in webhookData) {
+      console.log('Message received:');
       await handleMessage(webhookData);
     } else if ('callback_query' in webhookData) {
       console.log('Callback query received:');

@@ -1,6 +1,7 @@
 import { RedisService } from '../../services/redisService';
 import type { TelegramWebHookCallBackQueryPayload } from '../../types/telegram';
 import { TELEGRAM_BASE_URL } from '../../utils/constant';
+import { knownAccounts, handleKnownAccountsRequest } from './maincommands/knownaccounts';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -330,7 +331,8 @@ async function displayMainMenu(
         [
           { text: 'Balances', callback_data: '/balances' }, 
         ],
-        [{ text: 'Wallet PnL', callback_data: '/walletPnl' },]
+        [{ text: 'Wallet PnL', callback_data: '/walletPnl' },],
+        [{ text: 'Known Accounts', callback_data: '/knownaccounts' }],
       ],
     },
   });
@@ -363,6 +365,13 @@ export const handleCallback = async (
       // Handle token balances request
       if (subCommand === 'tokenBalances') {
         await handleTokenBalanceRequest(userId, chatId, messageId, baseUrl);
+        return;
+      }
+      
+      // Handle known accounts request with label
+      if (subCommand.startsWith('knownaccounts_')) {
+        const label = subCommand.split('_')[1];
+        await handleKnownAccountsRequest(chatId, messageId, label);
         return;
       }
       
@@ -407,6 +416,10 @@ export const handleCallback = async (
 
       case '/walletPnl':
         await handleWalletPnlRequest(userId, chatId, messageId, baseUrl);
+        break;
+        
+      case '/knownaccounts':
+        await knownAccounts(chatId, messageId);
         break;
       default:
         await sendErrorMessage(baseUrl, chatId, 'Invalid command');

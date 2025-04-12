@@ -71,7 +71,7 @@ export const TelegramWebHookCallBackQuerySchema = z.object({
         type: z.string(),
       }),
       date: z.number(),
-      text: z.string(),
+      text: z.string().optional(),
       entities: z
         .array(
           z.object({

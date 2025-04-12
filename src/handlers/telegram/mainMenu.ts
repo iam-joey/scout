@@ -13,6 +13,9 @@ export async function sendMainMenu(chatId: number) {
         [
           { text: 'Wallet PnL', callback_data: '/walletPnl' },
         ],
+        [
+          { text: 'Known Accounts', callback_data: '/knownaccounts' },
+        ],
       ],
     },
   };
