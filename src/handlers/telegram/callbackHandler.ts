@@ -8,7 +8,7 @@ import { initializeProgramDetailsFlow, promptProgramIdForDetails } from './mainc
 import { initializeInstructionsFlow, promptProgramIdForInstructions, promptInstructionsRange, updateInstructionsType } from './maincommands/instructionsData';
 import { initializeActiveUsersFlow, promptProgramIdForActiveUsers, promptActiveUsersRange, updateActiveUsersType } from './maincommands/activeUsersData';
 import { initializeFindActiveUsersFlow, promptProgramIdForFindActiveUsers, promptFindActiveUsersLimit, promptFindActiveUsersDays } from './maincommands/findActiveUsersData';
-import { displayTokensMenu, promptTokenMintAddress, promptTokenMintAddressForHolders, handleTokenHoldersPagination } from './maincommands/tokens';
+import { displayTokensMenu, promptTokenMintAddress, promptTokenMintAddressForHolders, handleTokenHoldersPagination, displayTokenListSettings, updateTokenListSort, updateTokenListSortDirection, clearTokenListSort, fetchTokenList } from './maincommands/tokens';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -521,6 +521,24 @@ export const handleCallback = async (
         else if (tokenCommand.startsWith('holders_page_')) {
           const page = Number(tokenCommand.split('_')[2]);
           await handleTokenHoldersPagination(chatId, page, messageId);
+        }
+        else if (tokenCommand === 'list_settings') {
+          await displayTokenListSettings(chatId, messageId);
+        }
+        else if (tokenCommand.startsWith('list_sort_')) {
+          const sortBy = tokenCommand.replace('list_sort_', '');
+          await updateTokenListSort(chatId, sortBy, messageId);
+        }
+        else if (tokenCommand.startsWith('list_direction_')) {
+          const direction = tokenCommand.replace('list_direction_', '') as 'asc' | 'desc';
+          await updateTokenListSortDirection(chatId, direction, messageId);
+        }
+        else if (tokenCommand === 'list_clear_sort') {
+          await clearTokenListSort(chatId, messageId);
+        }
+        else if (tokenCommand.startsWith('list_fetch_')) {
+          const page = Number(tokenCommand.split('_')[2]);
+          await fetchTokenList(chatId, page, messageId);
         }
         return;
       }
