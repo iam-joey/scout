@@ -190,7 +190,7 @@ export const makeVybeRequest = async (
       },
       body: body ? JSON.stringify(body) : undefined,
     });
-    
+    console.log(response);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }

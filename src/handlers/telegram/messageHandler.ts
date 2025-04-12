@@ -13,7 +13,7 @@ import {
 import { displayMainMenu } from './mainMenu';
 import { searchAddress } from './maincommands/knownaccounts';
 import { searchNftOwners } from './maincommands/nftowners';
-import { updateLimit } from './maincommands/programs';
+import { updateLimit, updateTvlResolution, fetchTvlData } from './maincommands/programs';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
@@ -212,6 +212,7 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
     const searchState = await redis.get(`known_accounts_search:${userId}`);
     const nftSearchState = await redis.get(`nft_owners_search:${userId}`);
     const programRankingState = await redis.get(`program_ranking_state:${userId}`);
+    const tvlState = await redis.get(`tvl_state:${userId}`);
 
     // Handle commands and states
     switch (messageText) {
@@ -260,6 +261,15 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
         // Handle program ranking limit input
         else if (programRankingState === 'waiting_for_limit') {
           await updateLimit(chatId, messageText);
+        }
+        // Handle TVL resolution input
+        else if (tvlState === 'waiting_for_resolution') {
+          await updateTvlResolution(chatId, messageText);
+        }
+        // Handle TVL program ID input
+        else if (tvlState === 'waiting_for_program_id') {
+          console.log("tvlState", tvlState);
+          await fetchTvlData(chatId, messageText);
         }
         // Handle unknown commands
         else {

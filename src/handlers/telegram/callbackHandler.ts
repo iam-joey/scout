@@ -3,7 +3,7 @@ import type { TelegramWebHookCallBackQueryPayload } from '../../types/telegram';
 import { TELEGRAM_BASE_URL } from '../../utils/constant';
 import { knownAccounts, handleKnownAccountsRequest, startSearch } from './maincommands/knownaccounts';
 import { startNftOwnersSearch } from './maincommands/nftowners';
-import { displayProgramsMenu, initializeRankingFlow, handleSetLimit, showIntervalOptions, updateInterval, fetchRankings, initializeProgramDefaults } from './maincommands/programs';
+import { displayProgramsMenu, initializeRankingFlow, handleSetLimit, showIntervalOptions, updateInterval, fetchRankings, initializeProgramDefaults, initializeTvlFlow, promptTvlResolution, promptProgramIdForTvl } from './maincommands/programs';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -529,6 +529,18 @@ export const handleCallback = async (
         } 
         else if (programCommand === 'fetch') {
           await fetchRankings(chatId, messageId);
+        }
+        // TVL related commands
+        else if (programCommand === 'tvl') {
+          await initializeProgramDefaults(chatId);
+          await RedisService.getInstance().del(`tvl_state:${chatId}`);
+          await initializeTvlFlow(chatId, messageId);
+        }
+        else if (programCommand === 'tvl_resolution') {
+          await promptTvlResolution(chatId);
+        }
+        else if (programCommand === 'tvl_fetch') {
+          await promptProgramIdForTvl(chatId);
         }
         return;
       }
