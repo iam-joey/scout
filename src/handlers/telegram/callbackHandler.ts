@@ -8,7 +8,7 @@ import { initializeProgramDetailsFlow, promptProgramIdForDetails } from './mainc
 import { initializeInstructionsFlow, promptProgramIdForInstructions, promptInstructionsRange, updateInstructionsType } from './maincommands/instructionsData';
 import { initializeActiveUsersFlow, promptProgramIdForActiveUsers, promptActiveUsersRange, updateActiveUsersType } from './maincommands/activeUsersData';
 import { initializeFindActiveUsersFlow, promptProgramIdForFindActiveUsers, promptFindActiveUsersLimit, promptFindActiveUsersDays } from './maincommands/findActiveUsersData';
-import { displayTokensMenu, promptTokenMintAddress } from './maincommands/tokens';
+import { displayTokensMenu, promptTokenMintAddress, promptTokenMintAddressForHolders, handleTokenHoldersPagination } from './maincommands/tokens';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -514,6 +514,13 @@ export const handleCallback = async (
         
         if (tokenCommand === 'details_fetch') {
           await promptTokenMintAddress(chatId);
+        }
+        else if (tokenCommand === 'holders_fetch') {
+          await promptTokenMintAddressForHolders(chatId);
+        }
+        else if (tokenCommand.startsWith('holders_page_')) {
+          const page = Number(tokenCommand.split('_')[2]);
+          await handleTokenHoldersPagination(chatId, page, messageId);
         }
         return;
       }

@@ -18,7 +18,7 @@ import { fetchProgramDetails } from './maincommands/programDetails';
 import { fetchInstructionsData, updateInstructionsRange } from './maincommands/instructionsData';
 import { fetchActiveUsersData, updateActiveUsersRange } from './maincommands/activeUsersData';
 import { fetchFindActiveUsersData, updateFindActiveUsersLimit, updateFindActiveUsersDays } from './maincommands/findActiveUsersData';
-import { fetchTokenDetails } from './maincommands/tokens';
+import { fetchTokenDetails, fetchTopTokenHolders } from './maincommands/tokens';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
@@ -224,6 +224,7 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
     const activeUsersState = await redis.get(`activeusers_state:${userId}`);
     const findActiveUsersState = await redis.get(`findactiveusers_state:${userId}`);
     const tokenDetailsState = await redis.get(`token_details_state:${userId}`);
+    const tokenHoldersState = await redis.get(`token_holders_state:${userId}`);
 
     // Handle commands and states
     switch (messageText) {
@@ -340,6 +341,12 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
           console.log("tokenDetailsState", tokenDetailsState);
           await fetchTokenDetails(chatId, messageText);
           await RedisService.getInstance().del(`token_details_state:${chatId}`);
+        }
+        // Handle Token Holders mint address input
+        else if (tokenHoldersState === 'waiting_for_mint_address') {
+          console.log("tokenHoldersState", tokenHoldersState);
+          await fetchTopTokenHolders(chatId, messageText);
+          await RedisService.getInstance().del(`token_holders_state:${chatId}`);
         }
         // Handle unknown commands
         else {
