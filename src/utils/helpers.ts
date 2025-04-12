@@ -2,6 +2,31 @@ import type { TelegramSendMessage } from '../types/telegram';
 import { VYBE_API_BASE_URL, VYBE_API_KEY, type HttpMethod } from './constant';
 import { PublicKey } from '@solana/web3.js';
 
+interface TokenMetric {
+  tokenAddress: string;
+  tokenSymbol: string;
+  realizedPnlUsd: number;
+  unrealizedPnlUsd: number;
+  buys: {
+    volumeUsd: number;
+    tokenAmount: number;
+    transactionCount: number;
+  };
+  sells: {
+    volumeUsd: number;
+    tokenAmount: number;
+    transactionCount: number;
+  };
+}
+
+interface BestPerformingToken {
+  tokenSymbol: string;
+  tokenAddress: string;
+  tokenName: string;
+  tokenLogoUrl: string;
+  pnlUsd: number;
+}
+
 async function requestTelegram(
   base_url: string,
   endpPoint: string,
@@ -53,6 +78,95 @@ export async function sendErrorMessage(
     },
   });
 }
+
+export const formatWalletPnlHtml = (data: any, resolution: string, page: number = 0) => {
+  // Extract data and ensure we have a valid totalTokenCount for pagination
+  const { summary, tokenMetrics } = data;
+  // Use summary.uniqueTokensTraded as a fallback for totalTokenCount if it's not provided
+  const totalTokenCount = data.totalTokenCount || (summary?.uniqueTokensTraded || 0);
+  
+  // Handle case when there's no trading data
+  if (!summary || !tokenMetrics || tokenMetrics.length === 0) {
+    return {
+      text: '<b>📊 No trading data available for this wallet.</b>',
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: 'Back to main menu', callback_data: '/main' }],
+        ],
+      },
+    };
+  }
+
+  const summaryHtml = `
+<b>📊 Wallet PnL Summary (${resolution.toUpperCase()})</b>
+
+<b>📈 Win Rate:</b> ${summary.winRate ? summary.winRate.toFixed(2) : '0.00'}%
+<b>💰 Realized PnL:</b> $${summary.realizedPnlUsd ? summary.realizedPnlUsd.toFixed(2) : '0.00'}
+<b>📈 Unrealized PnL:</b> $${summary.unrealizedPnlUsd ? summary.unrealizedPnlUsd.toFixed(2) : '0.00'}
+<b>🪙 Unique Tokens Traded:</b> ${summary.uniqueTokensTraded || 0}
+<b>💱 Average Trade:</b> $${summary.averageTradeUsd ? summary.averageTradeUsd.toFixed(2) : '0.00'}
+<b>🔄 Total Trades:</b> ${summary.tradesCount || 0}
+<b>✅ Winning Trades:</b> ${summary.winningTradesCount || 0}
+<b>❌ Losing Trades:</b> ${summary.losingTradesCount || 0}
+<b>📊 Total Volume:</b> $${summary.tradesVolumeUsd ? summary.tradesVolumeUsd.toFixed(2) : '0.00'}
+`;
+
+  // Only add best/worst performing tokens if they exist
+  let performanceHtml = '';
+  if (summary.bestPerformingToken?.tokenSymbol) {
+    performanceHtml += `
+<b>🏆 Best Performing Token:</b> ${summary.bestPerformingToken.tokenSymbol} ($${summary.bestPerformingToken.pnlUsd.toFixed(2)})`;
+  }
+  if (summary.worstPerformingToken?.tokenSymbol) {
+    performanceHtml += `
+<b>👎 Worst Performing Token:</b> ${summary.worstPerformingToken.tokenSymbol} ($${summary.worstPerformingToken.pnlUsd.toFixed(2)})`;
+  }
+
+  const summaryWithPerformance = summaryHtml + performanceHtml;
+
+  const tokenMetricsHtml = tokenMetrics.map((token: TokenMetric) => `
+<b>🪙 ${token.tokenSymbol}</b>
+<b>📈 Realized PnL:</b> $${token.realizedPnlUsd ? token.realizedPnlUsd.toFixed(2) : '0.00'}
+<b>📊 Unrealized PnL:</b> $${token.unrealizedPnlUsd ? token.unrealizedPnlUsd.toFixed(2) : '0.00'}
+<b>🛒 Buys:</b> ${token.buys?.transactionCount || 0} trades ($${token.buys?.volumeUsd ? token.buys.volumeUsd.toFixed(2) : '0.00'})
+<b>💰 Sells:</b> ${token.sells?.transactionCount || 0} trades ($${token.sells?.volumeUsd ? token.sells.volumeUsd.toFixed(2) : '0.00'})
+`).join('\n');
+
+  // Calculate pagination
+  // Ensure we have at least 1 page if there are any tokens
+  const totalPages = Math.max(1, Math.ceil(totalTokenCount / 5));
+  const paginationButtons = [];
+
+  // Add page indicator
+  const pageInfo = `\n\nPage ${page + 1} of ${Math.max(1, totalPages)}`;
+
+  if (page > 0) {
+    paginationButtons.push({
+      text: '⬅️ Previous',
+      callback_data: `/sub-pnl_page_${page - 1}`,
+    });
+  }
+
+  if (page < totalPages - 1) {
+    paginationButtons.push({
+      text: 'Next ➡️',
+      callback_data: `/sub-pnl_page_${page + 1}`,
+    });
+  }
+
+  return {
+    text: summaryWithPerformance + (tokenMetrics.length > 0 ? '\n\n<b>Token Details:</b>' + tokenMetricsHtml + pageInfo : ''),
+    parse_mode: 'HTML',
+    reply_markup: {
+      inline_keyboard: [
+        ...(tokenMetrics.length > 0 ? [paginationButtons] : []),
+        [{ text: 'Back to main menu', callback_data: '/main' }],
+      ],
+    },
+    disable_web_page_preview: true,
+  };
+};
 
 export async function updateMessage(
   base_url: string,

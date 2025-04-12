@@ -9,7 +9,9 @@ export async function sendMainMenu(chatId: number) {
       inline_keyboard: [
         [
           { text: 'Balances', callback_data: '/balances' },
-          { text: 'KYC Status', callback_data: '/kycs' },
+        ],
+        [
+          { text: 'Wallet PnL', callback_data: '/walletPnl' },
         ],
       ],
     },

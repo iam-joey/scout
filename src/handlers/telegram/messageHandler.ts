@@ -4,6 +4,7 @@ import { TELEGRAM_BASE_URL } from '../../utils/constant';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
+  formatWalletPnlHtml,
   isValidSolanaAddress,
   makeVybeRequest,
   sendErrorMessage,
@@ -111,6 +112,81 @@ async function handleTokenBalanceResponse(
 }
 
 /**
+ * Handle wallet PnL response when user sends a wallet address
+ */
+async function handleWalletPnlResponse(
+  walletAddress: string,
+  chatId: number,
+  userId: number,
+  baseUrl: string
+): Promise<void> {
+  if (!walletAddress || !isValidSolanaAddress(walletAddress)) {
+    await sendErrorMessage(baseUrl, chatId, 'Invalid wallet address');
+    return;
+  }
+  
+  try {
+    const redis = RedisService.getInstance();
+    const resolution = await redis.get(`userState-${userId}-pnlResolution`);
+    
+    if (!resolution) {
+      await sendErrorMessage(baseUrl, chatId, 'Time resolution not found. Please try again.');
+      return;
+    }
+
+    // Store wallet address in Redis for future use (do this before the request)
+    await redis.set(
+      `userState-${userId}-walletPnl`,
+      walletAddress,
+      REDIS_TTL
+    );
+
+    const data = await makeVybeRequest(
+      `account/pnl/${walletAddress}?resolution=${resolution}&limit=5&page=0`,
+      'GET',
+    );
+
+    // Handle case when there's no data
+    if (!data || !data.summary) {
+      await sendMessage(baseUrl, {
+        chat_id: chatId,
+        text: '<b>📊 No trading data available for this wallet.</b>',
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Back to main menu', callback_data: '/main' }],
+          ],
+        },
+      });
+      return;
+    }
+    
+    // Make sure we have tokenMetrics array even if it's empty
+    if (!data.tokenMetrics) {
+      data.tokenMetrics = [];
+    }
+
+    // Format and send the message
+    const formattedMessage = formatWalletPnlHtml(data, resolution, 0);
+
+    await sendMessage(baseUrl, {
+      chat_id: chatId,
+      text: formattedMessage.text,
+      reply_markup: formattedMessage.reply_markup,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+    });
+  } catch (error) {
+    console.error('Error fetching wallet PnL:', error);
+    await sendErrorMessage(
+      baseUrl,
+      chatId,
+      'Error fetching wallet PnL. Please try again later.'
+    );
+  }
+}
+
+/**
  * Handle welcome message
  */
 async function handleWelcomeMessage(chatId: number, baseUrl: string): Promise<void> {
@@ -152,6 +228,10 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
         else if (userState === 'tokenBalances') {
           await handleTokenBalanceResponse(messageText, chatId, userId, baseUrl);
         } 
+        // Handle wallet PnL address request
+        else if (userState === 'walletPnlAddress') {
+          await handleWalletPnlResponse(messageText, chatId, userId, baseUrl);
+        }
         // Handle unknown commands
         else {
           await sendErrorMessage(baseUrl, chatId, 'Invalid command');

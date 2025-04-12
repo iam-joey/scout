@@ -12,6 +12,7 @@ router.post('/webhook', async (req, res) => {
     if ('message' in webhookData) {
       await handleMessage(webhookData);
     } else if ('callback_query' in webhookData) {
+      console.log('Callback query received:');
       await handleCallback(webhookData);
     }
 
