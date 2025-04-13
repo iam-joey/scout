@@ -33,7 +33,7 @@ import {
   updateFindActiveUsersLimit,
   updateFindActiveUsersDays,
 } from './maincommands/findActiveUsersData';
-import { fetchTokenDetails, fetchTopTokenHolders } from './maincommands/tokens';
+import { fetchTokenDetails, fetchTopTokenHolders, updateTokenTransfersFilter } from './maincommands/tokens';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
@@ -247,6 +247,7 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
     );
     const tokenDetailsState = await redis.get(`token_details_state:${userId}`);
     const tokenHoldersState = await redis.get(`token_holders_state:${userId}`);
+    const tokenTransfersState = await redis.get(`token_transfers_state:${userId}`);
 
     // Handle commands and states
     switch (messageText) {
@@ -378,12 +379,33 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
           console.log('tokenDetailsState', tokenDetailsState);
           await fetchTokenDetails(chatId, messageText);
           await RedisService.getInstance().del(`token_details_state:${chatId}`);
+          await RedisService.getInstance().del(`token_transfers_state:${chatId}`);
+          await RedisService.getInstance().del(`token_holders_state:${chatId}`);
         }
         // Handle Token Holders mint address input
         else if (tokenHoldersState === 'waiting_for_mint_address') {
           console.log('tokenHoldersState', tokenHoldersState);
           await fetchTopTokenHolders(chatId, messageText);
           await RedisService.getInstance().del(`token_holders_state:${chatId}`);
+          await RedisService.getInstance().del(`token_transfers_state:${chatId}`);
+          await RedisService.getInstance().del(`token_details_state:${chatId}`);
+        }
+        // Handle Token Transfers filter inputs
+        else if (tokenTransfersState && tokenTransfersState.startsWith('waiting_for_')) {
+          console.log('tokenTransfersState', tokenTransfersState);
+          const filterType = tokenTransfersState.replace('waiting_for_', '');
+          const value = messageText.trim();
+
+          // Get the last message ID from Redis
+          const lastMessageId = await redis.get(`token_transfers_last_message:${chatId}`);
+          const messageId = lastMessageId ? parseInt(lastMessageId) : undefined;
+
+          // Handle special commands
+          if (value.toLowerCase() === 'clear') {
+            await updateTokenTransfersFilter(chatId, filterType, '', messageId);
+          } else {
+            await updateTokenTransfersFilter(chatId, filterType, value, messageId);
+          }
         }
         // Handle unknown commands
         else {

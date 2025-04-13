@@ -54,6 +54,11 @@ import {
   updateTokenListSortDirection,
   clearTokenListSort,
   fetchTokenList,
+  promptTokenTransfersConfig,
+  promptTokenTransfersFilterValue,
+  fetchTokenTransfers,
+  handleTokenTransfersPagination,
+  clearAllTokenTransfersFilters,
 } from './maincommands/tokens';
 import {
   formatNftSummaryHtml,
@@ -666,6 +671,18 @@ export const handleCallback = async (
         } else if (tokenCommand.startsWith('list_fetch_')) {
           const page = Number(tokenCommand.split('_')[2]);
           await fetchTokenList(chatId, page, messageId);
+        } else if (tokenCommand === 'transfers_fetch') {
+          await promptTokenTransfersConfig(chatId, messageId);
+        } else if (tokenCommand.startsWith('transfers_config_')) {
+          const filterType = tokenCommand.replace('transfers_config_', '');
+          await promptTokenTransfersFilterValue(chatId, filterType, messageId);
+        } else if (tokenCommand === 'transfers_clear_all') {
+          await clearAllTokenTransfersFilters(chatId, messageId);
+        } else if (tokenCommand === 'transfers_fetch_data') {
+          await fetchTokenTransfers(chatId, 0, messageId);
+        } else if (tokenCommand.startsWith('transfers_page_')) {
+          const page = Number(tokenCommand.split('_')[2]);
+          await handleTokenTransfersPagination(chatId, page, messageId);
         }
         return;
       }

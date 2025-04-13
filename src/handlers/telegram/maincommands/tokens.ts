@@ -43,6 +43,12 @@ export async function displayTokensMenu(chatId: number, messageId?: number) {
         ],
         [
           {
+            text: '📊 Tokens Transfer History',
+            callback_data: '/sub-tokens_transfers_fetch',
+          },
+        ],
+        [
+          {
             text: '📋 Get All Tokens',
             callback_data: '/sub-tokens_list_settings',
           },
@@ -886,6 +892,536 @@ export async function fetchTokenList(
       await sendMessage(TELEGRAM_BASE_URL, message);
     }
   }
+}
+
+/**
+ * Prompt user to configure transaction history filters
+ */
+export async function promptTokenTransfersConfig(chatId: number, messageId?: number) {
+  try {
+    const redis = RedisService.getInstance();
+    
+    // Initialize token transfers filters if they don't exist
+    const filtersKey = `token_transfers_filters:${chatId}`;
+    const existingFilters = await redis.get(filtersKey);
+    
+    if (!existingFilters) {
+      const defaultFilters = {
+        mintAddress: '',
+        senderAddress: '',
+        receiverAddress: '',
+        page: 0,
+        limit: 5,
+      };
+      await redis.set(filtersKey, JSON.stringify(defaultFilters), REDIS_TTL * 5);
+    }
+
+    // Set the state to configuring filters
+    await redis.set(
+      `token_transfers_state:${chatId}`,
+      'configuring_filters',
+      REDIS_TTL,
+    );
+
+    // Get current filters
+    const filters = JSON.parse(await redis.get(filtersKey) || '{}');
+
+    // Prepare current filters summary
+    let filterSummary = '<b>🔍 Current Filters:</b>\n';
+    if (filters.mintAddress) {
+      filterSummary += `<b>🪙 Mint:</b> <code>${filters.mintAddress}</code>\n`;
+    }
+    if (filters.senderAddress) {
+      filterSummary += `<b>📤 Sender:</b> <code>${filters.senderAddress}</code>\n`;
+    }
+    if (filters.receiverAddress) {
+      filterSummary += `<b>📥 Receiver:</b> <code>${filters.receiverAddress}</code>\n`;
+    }
+    if (!filters.mintAddress && !filters.senderAddress && !filters.receiverAddress) {
+      filterSummary += '<i>No filters applied</i>\n';
+    }
+
+    const message = {
+      chat_id: chatId,
+      text: `<b>📊 Tokens Transfer History</b>\n\nConfigure filters to view token transactions. All filters are optional.\n\n${filterSummary}\nSelect a filter to configure:`,
+      parse_mode: 'HTML' as 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: `🪙 ${filters.mintAddress ? '✅ ' : ''}Token`,
+              callback_data: '/sub-tokens_transfers_config_mint',
+            },
+          ],
+          [
+            {
+              text: `📤 ${filters.senderAddress ? '✅ ' : ''}From`,
+              callback_data: '/sub-tokens_transfers_config_sender',
+            },
+          ],
+          [
+            {
+              text: `📥 ${filters.receiverAddress ? '✅ ' : ''}To`,
+              callback_data: '/sub-tokens_transfers_config_receiver',
+            },
+          ],
+          [
+            {
+              text: '🔍 Search Transactions',
+              callback_data: '/sub-tokens_transfers_fetch_data',
+            },
+          ],
+          [
+            {
+              text: '🔄 Clear All Filters',
+              callback_data: '/sub-tokens_transfers_clear_all',
+            },
+          ],
+          [{ text: '🔙 Back', callback_data: '/tokens' }],
+        ],
+      },
+    };
+
+    let finalMessageId = messageId;
+    if (messageId) {
+      await updateMessage(TELEGRAM_BASE_URL, {
+        ...message,
+        message_id: messageId,
+      });
+    } else {
+      const response = await sendMessage(TELEGRAM_BASE_URL, message);
+      finalMessageId = response?.result?.message_id;
+    }
+
+    // Store the message ID for future updates
+    if (finalMessageId) {
+      await redis.set(
+        `token_transfers_last_message:${chatId}`,
+        finalMessageId.toString(),
+        REDIS_TTL,
+      );
+    }
+  } catch (error) {
+    console.error('Error in promptTokenTransfersConfig:', error);
+    await sendMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      text: '<b>❌ Error</b>\n\nUnable to configure filters. Please try again.',
+      parse_mode: 'HTML' as 'HTML',
+      reply_markup: {
+        inline_keyboard: [[{ text: '🔙 Back', callback_data: '/tokens' }]],
+      },
+    });
+  }
+}
+
+/**
+ * Prompt user to enter a specific filter value for token transfers
+ */
+export async function promptTokenTransfersFilterValue(chatId: number, filterType: string, messageId?: number) {
+  const redis = RedisService.getInstance();
+  await redis.set(
+    `token_transfers_state:${chatId}`,
+    `waiting_for_${filterType}`,
+    REDIS_TTL,
+  );
+
+  let promptText = '';
+  switch (filterType) {
+    case 'mint':
+      promptText = '<b>🪙 Enter Mint Address</b>\n\nPlease enter the <b>mint address</b> of the token to fetch transfers for:';
+      break;
+    case 'sender':
+      promptText = '<b>📤 Enter Sender Address</b>\n\nPlease enter the <b>sender address</b> to filter transfers by:';
+      break;
+    case 'receiver':
+      promptText = '<b>📥 Enter Receiver Address</b>\n\nPlease enter the <b>receiver address</b> to filter transfers by:';
+      break;
+    default:
+      promptText = '<b>Enter Filter Value</b>\n\nPlease enter the value for the selected filter:';
+  }
+
+  const message = {
+    chat_id: chatId,
+    text: promptText,
+    parse_mode: 'HTML' as 'HTML',
+    reply_markup: {
+      inline_keyboard: [[
+        { text: '🔙 Back to Filters', callback_data: '/sub-tokens_transfers_fetch' }
+      ]],
+    },
+  };
+
+  // Always send a new message when asking for filter input
+  await sendMessage(TELEGRAM_BASE_URL, message);
+}
+
+/**
+ * Clear all token transfer filters
+ */
+export async function clearAllTokenTransfersFilters(chatId: number, messageId?: number) {
+  try {
+    const redis = RedisService.getInstance();
+    const filtersKey = `token_transfers_filters:${chatId}`;
+    
+    // Reset filters to default
+    const defaultFilters = {
+      mintAddress: '',
+      senderAddress: '',
+      receiverAddress: '',
+      page: 0,
+      limit: 5,
+    };
+    
+    await redis.set(filtersKey, JSON.stringify(defaultFilters), REDIS_TTL * 5);
+    
+    // Update the existing message with the filters menu
+    await promptTokenTransfersConfig(chatId, messageId);
+  } catch (error) {
+    console.error('Error clearing token transfers filters:', error);
+    await sendMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      text: '<b>❌ Error</b>\n\nUnable to clear filters. Please try again.',
+      parse_mode: 'HTML' as 'HTML',
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '🔙 Back to Filters', callback_data: '/sub-tokens_transfers_fetch' }
+        ]],
+      },
+    });
+  }
+}
+
+/**
+ * Update token transfers filter with the provided value
+ */
+export async function updateTokenTransfersFilter(chatId: number, filterType: string, value: string, messageId?: number) {
+  try {
+    const redis = RedisService.getInstance();
+    const filtersKey = `token_transfers_filters:${chatId}`;
+    const filtersJson = await redis.get(filtersKey);
+    
+    if (!filtersJson) {
+      // Initialize with default filters if not found
+      const defaultFilters = {
+        mintAddress: '',
+        senderAddress: '',
+        receiverAddress: '',
+        page: 0,
+        limit: 5,
+      };
+      await redis.set(filtersKey, JSON.stringify(defaultFilters), REDIS_TTL * 5);
+      return await updateTokenTransfersFilter(chatId, filterType, value);
+    }
+    
+    const filters = JSON.parse(filtersJson);
+    
+    // Handle filter clearing
+    if (value.trim() === '') {
+      // Clear the specified filter
+      switch (filterType) {
+        case 'mint':
+          filters.mintAddress = '';
+          break;
+        case 'sender':
+          filters.senderAddress = '';
+          break;
+        case 'receiver':
+          filters.receiverAddress = '';
+          break;
+        default:
+          throw new Error(`Unknown filter type: ${filterType}`);
+      }
+    } else {
+      // Validate Solana address format if value is provided
+      if (!value.match(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)) {
+        throw new Error(`Invalid Solana address format for ${filterType}`);
+      }
+      
+      // Update the appropriate filter
+      switch (filterType) {
+        case 'mint':
+          filters.mintAddress = value.trim();
+          break;
+        case 'sender':
+          filters.senderAddress = value.trim();
+          break;
+        case 'receiver':
+          filters.receiverAddress = value.trim();
+          break;
+        default:
+          throw new Error(`Unknown filter type: ${filterType}`);
+      }
+    }
+    
+    // Reset page when filters change
+    filters.page = 0;
+    
+    // Save updated filters
+    await redis.set(filtersKey, JSON.stringify(filters), REDIS_TTL * 5);
+    
+    // Clear the waiting state
+    await redis.del(`token_transfers_state:${chatId}`);
+    
+    // Prepare current filters summary
+    let filterSummary = '<b>🔍 Current Filters:</b>\n';
+    if (filters.mintAddress) {
+      filterSummary += `<b>🪙 Mint:</b> <code>${filters.mintAddress}</code>\n`;
+    }
+    if (filters.senderAddress) {
+      filterSummary += `<b>📤 Sender:</b> <code>${filters.senderAddress}</code>\n`;
+    }
+    if (filters.receiverAddress) {
+      filterSummary += `<b>📥 Receiver:</b> <code>${filters.receiverAddress}</code>\n`;
+    }
+    if (!filters.mintAddress && !filters.senderAddress && !filters.receiverAddress) {
+      filterSummary += '<i>No filters applied</i>\n';
+    }
+    
+    // First send a confirmation message
+    const filterAction = value.trim() === '' ? 'Cleared' : 'Updated';
+    await sendMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      text: `<b>✅ Filter ${filterAction}</b>\n\n${filterType.charAt(0).toUpperCase() + filterType.slice(1)} address ${value.trim() === '' ? 'cleared' : `set to:\n<code>${value}</code>`}`,
+      parse_mode: 'HTML' as 'HTML',
+    });
+
+    // Then show the updated filters menu
+    await promptTokenTransfersConfig(chatId);
+  } catch (error) {
+    console.error('Error updating token transfers filter:', error);
+    await sendMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      text: '<b>❌ Error</b>\n\nUnable to update filter. Please try again.',
+      parse_mode: 'HTML' as 'HTML',
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '🔙 Back to Filters', callback_data: '/sub-tokens_transfers_fetch' }
+        ]],
+      },
+    });
+  }
+}
+
+/**
+ * Create pagination buttons for token transfers
+ */
+export function createTokenTransfersPaginationButtons(
+  currentPage: number,
+): { text: string; callback_data: string }[] {
+  const buttons = [];
+
+  // Previous page button (if not on first page)
+  if (currentPage > 0) {
+    buttons.push({
+      text: '⬅️ Previous',
+      callback_data: `/sub-tokens_transfers_page_${currentPage - 1}`,
+    });
+  }
+
+  // Current page indicator
+  buttons.push({
+    text: `📄 ${currentPage + 1}`,
+    callback_data: 'current_page', // This is a dummy callback, won't do anything
+  });
+
+  // Next page button
+  buttons.push({
+    text: 'Next ➡️',
+    callback_data: `/sub-tokens_transfers_page_${currentPage + 1}`,
+  });
+
+  return buttons;
+}
+
+/**
+ * Format token transfer amount with decimals
+ */
+function formatTokenAmount(amount: number, decimals: number): string {
+  if (decimals === 0) return amount.toString();
+  const divisor = Math.pow(10, decimals);
+  return (amount / divisor).toFixed(Math.min(decimals, 6));
+}
+
+/**
+ * Format timestamp to readable date
+ */
+function formatTimestamp(timestamp: number): string {
+  const date = new Date(timestamp * 1000);
+  return date.toLocaleString();
+}
+
+/**
+ * Fetch and display token transfers with pagination
+ */
+export async function fetchTokenTransfers(
+  chatId: number,
+  page: number = 0,
+  messageId?: number,
+) {
+  try {
+    const redis = RedisService.getInstance();
+    const filtersKey = `token_transfers_filters:${chatId}`;
+    const filtersJson = await redis.get(filtersKey);
+    
+    if (!filtersJson) {
+      throw new Error('Filters not found');
+    }
+    
+    const filters = JSON.parse(filtersJson);
+    filters.page = page;
+    
+    // Update the stored filters with the new page
+    await redis.set(filtersKey, JSON.stringify(filters), REDIS_TTL * 5);
+    
+    // Construct the API URL with filters
+    let apiUrl = `token/transfers?page=${page}&limit=${filters.limit}`;
+    
+    if (filters.mintAddress) {
+      apiUrl += `&mintAddress=${filters.mintAddress}`;
+    }
+    
+    if (filters.senderAddress) {
+      apiUrl += `&senderAddress=${filters.senderAddress}`;
+    }
+    
+    if (filters.receiverAddress) {
+      apiUrl += `&receiverAddress=${filters.receiverAddress}`;
+    }
+    
+    // Send loading message
+    const loadingMessage = {
+      chat_id: chatId,
+      text: '<b>⏳ Processing</b>\n\nFetching token transfers...\n\nPlease wait...',
+      parse_mode: 'HTML' as 'HTML',
+    };
+    
+    if (messageId) {
+      await updateMessage(TELEGRAM_BASE_URL, {
+        ...loadingMessage,
+        message_id: messageId,
+      });
+    } else {
+      const sentMessage = await sendMessage(TELEGRAM_BASE_URL, loadingMessage);
+      messageId = sentMessage?.result?.message_id;
+    }
+    
+    // Fetch token transfers
+    const response = await makeVybeRequest(apiUrl);
+    
+    if (!response || !response.transfers || response.transfers.length === 0) {
+      const noDataMessage = {
+        chat_id: chatId,
+        text: '<b>ℹ️ No Data</b>\n\nNo token transfers found with the current filters.',
+        parse_mode: 'HTML' as 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🔄 Configure Filters', callback_data: '/sub-tokens_transfers_fetch' }],
+            [{ text: '🔙 Tokens Menu', callback_data: '/tokens' }],
+          ],
+        },
+      };
+      
+      if (messageId) {
+        await updateMessage(TELEGRAM_BASE_URL, {
+          ...noDataMessage,
+          message_id: messageId,
+        });
+      } else {
+        await sendMessage(TELEGRAM_BASE_URL, noDataMessage);
+      }
+      return;
+    }
+    
+    // Format transfers data
+    let transfersHtml = '';
+    response.transfers.forEach((transfer: any, index: number) => {
+      const amount = formatTokenAmount(transfer.amount, transfer.decimal);
+      transfersHtml += `<b>🔄 Transfer #${index + 1}</b>\n`;
+      transfersHtml += `<b>🪙 Amount:</b> ${amount}${transfer.calculatedAmount ? ` (${transfer.calculatedAmount})` : ''}\n`;
+      transfersHtml += `<b>📤 From:</b> <code>${transfer.senderAddress}</code>\n`;
+      transfersHtml += `<b>📥 To:</b> <code>${transfer.receiverAddress}</code>\n`;
+      transfersHtml += `<b>🕒 Time:</b> ${formatTimestamp(transfer.blockTime)}\n`;
+      
+      if (transfer.valueUsd) {
+        transfersHtml += `<b>💵 Value:</b> $${transfer.valueUsd}\n`;
+      }
+      
+      transfersHtml += `<b>🔗 Tx:</b> <a href="https://solscan.io/tx/${transfer.signature}">View on Solscan</a>\n\n`;
+    });
+    
+    // Create filter summary
+    let filterSummary = '<b>🔍 Applied Filters:</b>\n';
+    if (filters.mintAddress) {
+      filterSummary += `<b>🪙 Mint:</b> <code>${filters.mintAddress}</code>\n`;
+    }
+    if (filters.senderAddress) {
+      filterSummary += `<b>📤 Sender:</b> <code>${filters.senderAddress}</code>\n`;
+    }
+    if (filters.receiverAddress) {
+      filterSummary += `<b>📥 Receiver:</b> <code>${filters.receiverAddress}</code>\n`;
+    }
+    if (!filters.mintAddress && !filters.senderAddress && !filters.receiverAddress) {
+      filterSummary += '<i>No filters applied</i>\n';
+    }
+    
+    // Prepare the final message
+    const message = {
+      chat_id: chatId,
+      text: `<b>🔄 Token Transfers</b>\n\n${filterSummary}\n${transfersHtml}`,
+      parse_mode: 'HTML' as 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: {
+        inline_keyboard: [
+          createTokenTransfersPaginationButtons(page),
+          [{ text: '🔄 Configure Filters', callback_data: '/sub-tokens_transfers_fetch' }],
+          [{ text: '🔙 Tokens Menu', callback_data: '/tokens' }],
+        ],
+      },
+    };
+    
+    if (messageId) {
+      await updateMessage(TELEGRAM_BASE_URL, {
+        ...message,
+        message_id: messageId,
+      });
+    } else {
+      await sendMessage(TELEGRAM_BASE_URL, message);
+    }
+  } catch (error) {
+    console.error('Error in fetchTokenTransfers:', error);
+    const errorMessage = {
+      chat_id: chatId,
+      text: '<b>❌ Error</b>\n\nUnable to fetch token transfers. Please try again.',
+      parse_mode: 'HTML' as 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🔄 Try Again', callback_data: `/sub-tokens_transfers_page_${page}` }],
+          [{ text: '🔄 Configure Filters', callback_data: '/sub-tokens_transfers_fetch' }],
+          [{ text: '🔙 Tokens Menu', callback_data: '/tokens' }],
+        ],
+      },
+    };
+    
+    if (messageId) {
+      await updateMessage(TELEGRAM_BASE_URL, {
+        ...errorMessage,
+        message_id: messageId,
+      });
+    } else {
+      await sendMessage(TELEGRAM_BASE_URL, errorMessage);
+    }
+  }
+}
+
+/**
+ * Handle token transfers pagination
+ */
+export async function handleTokenTransfersPagination(
+  chatId: number,
+  page: number,
+  messageId: number,
+) {
+  await fetchTokenTransfers(chatId, page, messageId);
 }
 
 export async function fetchTokenDetails(chatId: number, mintAddress: string) {
