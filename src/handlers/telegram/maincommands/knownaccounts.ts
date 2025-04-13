@@ -1,9 +1,13 @@
 import { TELEGRAM_BASE_URL } from '../../../utils/constant';
-import { makeVybeRequest, updateMessage, sendMessage } from '../../../utils/helpers';
+import {
+  makeVybeRequest,
+  updateMessage,
+  sendMessage,
+} from '../../../utils/helpers';
 import { RedisService } from '../../../services/redisService';
 
 // Constants
-const REDIS_TTL = 60; 
+const REDIS_TTL = 60;
 /**
  * Display known accounts categories for selection
  */
@@ -18,7 +22,10 @@ export async function knownAccounts(chatId: number, messageId: number) {
           [
             { text: '🏦 CEX', callback_data: '/sub-knownaccounts_CEX' },
             { text: '🎮 dApp', callback_data: '/sub-knownaccounts_dApp' },
-            { text: '💰 Treasury', callback_data: '/sub-knownaccounts_Treasury' },
+            {
+              text: '💰 Treasury',
+              callback_data: '/sub-knownaccounts_Treasury',
+            },
           ],
           [
             { text: '🔒 Hacker', callback_data: '/sub-knownaccounts_Hacker' },
@@ -36,11 +43,12 @@ export async function knownAccounts(chatId: number, messageId: number) {
             { text: '🔄 CLMM', callback_data: '/sub-knownaccounts_CLMM' },
           ],
           [
-            { text: '🔍 Search by Address', callback_data: '/sub-knownaccounts_search' },
+            {
+              text: '🔍 Search by Address',
+              callback_data: '/sub-knownaccounts_search',
+            },
           ],
-          [
-            { text: '🔙 Main Menu', callback_data: '/main' },
-          ],
+          [{ text: '🔙 Main Menu', callback_data: '/main' }],
         ],
       },
     });
@@ -50,15 +58,18 @@ export async function knownAccounts(chatId: number, messageId: number) {
   }
 }
 
-
 /**
  * Start search flow by asking for address
  */
 export async function startSearch(chatId: number, messageId: number) {
   const redis = RedisService.getInstance();
   await redis.del(`known_accounts_search:${chatId}`);
-  await redis.set(`known_accounts_search:${chatId}`, 'waiting_for_address', REDIS_TTL);
-  
+  await redis.set(
+    `known_accounts_search:${chatId}`,
+    'waiting_for_address',
+    REDIS_TTL,
+  );
+
   await sendMessage(TELEGRAM_BASE_URL, {
     chat_id: chatId,
     text: 'Please enter the address you want to search for:',
@@ -97,8 +108,10 @@ export async function searchAddress(chatId: number, address: string) {
       ];
     } else {
       const account = response.accounts[0];
-      const labels = account.labels.filter((label: string) => label).join(', ') || 'N/A';
-      message = `🏷️ <b>Labeled Account Found</b>\n\n` +
+      const labels =
+        account.labels.filter((label: string) => label).join(', ') || 'N/A';
+      message =
+        `🏷️ <b>Labeled Account Found</b>\n\n` +
         `<b>Name:</b> ${account.name}\n` +
         `<b>Address:</b> <code>${account.ownerAddress}</code>\n` +
         `<b>Labels:</b> ${labels}\n` +
@@ -126,7 +139,12 @@ export async function searchAddress(chatId: number, address: string) {
       text: 'Address not found.',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🔍 Try Again', callback_data: '/sub-knownaccounts_search' }],
+          [
+            {
+              text: '🔍 Try Again',
+              callback_data: '/sub-knownaccounts_search',
+            },
+          ],
           [{ text: '🔙 Labelled Accounts', callback_data: '/knownaccounts' }],
         ],
       },
@@ -138,9 +156,9 @@ export async function searchAddress(chatId: number, address: string) {
  * Handle known accounts request with specific label
  */
 export async function handleKnownAccountsRequest(
-  chatId: number, 
-  messageId: number, 
-  label: string
+  chatId: number,
+  messageId: number,
+  label: string,
 ) {
   try {
     // Update message to show loading state
@@ -155,7 +173,7 @@ export async function handleKnownAccountsRequest(
     const endpoint = `account/known-accounts?labels=${encodeURIComponent(label)}`;
     const response = await makeVybeRequest(endpoint);
     if (!response || !response.accounts) {
-      console.log('No data found for label:', label); 
+      console.log('No data found for label:', label);
       console.log('Response:', response);
       await updateMessage(TELEGRAM_BASE_URL, {
         chat_id: chatId,
@@ -173,31 +191,38 @@ export async function handleKnownAccountsRequest(
 
     // Format the accounts in a beautiful way
     const accounts = response.accounts;
-    const formattedAccounts = accounts.map((account: any, index: number) => {
-      ///@ts-ignore
-      const labels = account.labels.filter(label => label).join(', ') || 'N/A';
-      const logoUrl = account.logoUrl || 'N/A';
-      
-      return `Account ${index + 1}:\n` +
-        `Address: ${account.ownerAddress}\n` +
-        `Name: ${account.name}\n` +
-        `Labels: ${labels}\n` +
-        `Logo: ${logoUrl}\n` +
-        `Twitter: ${account.twitterUrl || 'N/A'}\n` +
-        `Added: ${new Date(account.dateAdded).toLocaleDateString()}\n` +
-        `-----------------------------------\n`;
-    }).join('\n');
+    const formattedAccounts = accounts
+      .map((account: any, index: number) => {
+        ///@ts-ignore
+        const labels =
+          account.labels.filter((label) => label).join(', ') || 'N/A';
+        const logoUrl = account.logoUrl || 'N/A';
+
+        return (
+          `Account ${index + 1}:\n` +
+          `Address: ${account.ownerAddress}\n` +
+          `Name: ${account.name}\n` +
+          `Labels: ${labels}\n` +
+          `Logo: ${logoUrl}\n` +
+          `Twitter: ${account.twitterUrl || 'N/A'}\n` +
+          `Added: ${new Date(account.dateAdded).toLocaleDateString()}\n` +
+          `-----------------------------------\n`
+        );
+      })
+      .join('\n');
 
     // Create a FormData object for the file
     const formData = new FormData();
     formData.append('chat_id', chatId.toString());
-    
+
     // Create a Blob for the document
     const blob = new Blob([formattedAccounts], { type: 'text/plain' });
-    const file = new File([blob], `${label.toLowerCase()}_accounts.txt`, { type: 'text/plain' });
+    const file = new File([blob], `${label.toLowerCase()}_accounts.txt`, {
+      type: 'text/plain',
+    });
     formData.append('document', file);
     formData.append('caption', `${label} Accounts List`);
-    
+
     const response2 = await fetch(`${TELEGRAM_BASE_URL}/sendDocument`, {
       method: 'POST',
       body: formData,
@@ -218,7 +243,7 @@ export async function handleKnownAccountsRequest(
         message_id: messageId,
       }),
     });
-    
+
     // Now send a new message with navigation buttons
     await fetch(`${TELEGRAM_BASE_URL}/sendMessage`, {
       method: 'POST',
@@ -251,5 +276,3 @@ export async function handleKnownAccountsRequest(
     });
   }
 }
-
-

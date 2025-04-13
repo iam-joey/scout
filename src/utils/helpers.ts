@@ -79,21 +79,24 @@ export async function sendErrorMessage(
   });
 }
 
-export const formatWalletPnlHtml = (data: any, resolution: string, page: number = 0) => {
+export const formatWalletPnlHtml = (
+  data: any,
+  resolution: string,
+  page: number = 0,
+) => {
   // Extract data and ensure we have a valid totalTokenCount for pagination
   const { summary, tokenMetrics } = data;
   // Use summary.uniqueTokensTraded as a fallback for totalTokenCount if it's not provided
-  const totalTokenCount = data.totalTokenCount || (summary?.uniqueTokensTraded || 0);
-  
+  const totalTokenCount =
+    data.totalTokenCount || summary?.uniqueTokensTraded || 0;
+
   // Handle case when there's no trading data
   if (!summary || !tokenMetrics || tokenMetrics.length === 0) {
     return {
       text: '<b>📊 No trading data available for this wallet.</b>',
       parse_mode: 'HTML',
       reply_markup: {
-        inline_keyboard: [
-          [{ text: ' 🔙 Main Menu', callback_data: '/main' }],
-        ],
+        inline_keyboard: [[{ text: ' 🔙 Main Menu', callback_data: '/main' }]],
       },
     };
   }
@@ -125,13 +128,17 @@ export const formatWalletPnlHtml = (data: any, resolution: string, page: number 
 
   const summaryWithPerformance = summaryHtml + performanceHtml;
 
-  const tokenMetricsHtml = tokenMetrics.map((token: TokenMetric) => `
+  const tokenMetricsHtml = tokenMetrics
+    .map(
+      (token: TokenMetric) => `
 <b>🪙 ${token.tokenSymbol}</b>
 <b>📈 Realized PnL:</b> $${token.realizedPnlUsd ? token.realizedPnlUsd.toFixed(2) : '0.00'}
 <b>📊 Unrealized PnL:</b> $${token.unrealizedPnlUsd ? token.unrealizedPnlUsd.toFixed(2) : '0.00'}
 <b>🛒 Buys:</b> ${token.buys?.transactionCount || 0} trades ($${token.buys?.volumeUsd ? token.buys.volumeUsd.toFixed(2) : '0.00'})
 <b>💰 Sells:</b> ${token.sells?.transactionCount || 0} trades ($${token.sells?.volumeUsd ? token.sells.volumeUsd.toFixed(2) : '0.00'})
-`).join('\n');
+`,
+    )
+    .join('\n');
 
   // Calculate pagination
   // Ensure we have at least 1 page if there are any tokens
@@ -156,7 +163,11 @@ export const formatWalletPnlHtml = (data: any, resolution: string, page: number 
   }
 
   return {
-    text: summaryWithPerformance + (tokenMetrics.length > 0 ? '\n\n<b>Token Details:</b>' + tokenMetricsHtml + pageInfo : ''),
+    text:
+      summaryWithPerformance +
+      (tokenMetrics.length > 0
+        ? '\n\n<b>Token Details:</b>' + tokenMetricsHtml + pageInfo
+        : ''),
     parse_mode: 'HTML',
     reply_markup: {
       inline_keyboard: [
@@ -193,7 +204,7 @@ export const makeVybeRequest = async (
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    const data=await response.json();
+    const data = await response.json();
     console.log(data);
     return data;
   } catch (error) {
@@ -230,7 +241,7 @@ const escapeHtml = (str = '') =>
 export const formatNftSummaryHtml = (
   data: any,
   page: number = 0,
-  limit: number = 5
+  limit: number = 5,
 ) => {
   const totalPages = Math.ceil(data.totalNftCollectionCount / limit);
   // API already returns paginated data, so we don't need to slice

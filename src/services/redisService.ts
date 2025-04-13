@@ -37,14 +37,14 @@ export class RedisService {
 
   async listKeys(pattern = '*'): Promise<string[]> {
     if (!this.client) throw new Error('Redis client not initialized');
-  
+
     const keys: string[] = [];
     const iter = this.client.scanIterator({ MATCH: pattern });
-  
+
     for await (const key of iter) {
       keys.push(key);
     }
-  
+
     return keys;
   }
 
@@ -52,7 +52,7 @@ export class RedisService {
     if (!this.client) throw new Error('Redis client not initialized');
 
     if (ttl) {
-      await this.client.set(key, value, { EX:ttl });
+      await this.client.set(key, value, { EX: ttl });
     } else {
       await this.client.set(key, value);
     }
@@ -71,26 +71,24 @@ export class RedisService {
   async deleteAllKeys(pattern = '*') {
     console.log('Deleting all keys matching pattern:', pattern);
     if (!this.client) throw new Error('Redis client not initialized');
-  
+
     const iter = this.client.scanIterator({ MATCH: pattern });
     const keysToDelete: string[] = [];
-  
+
     for await (const key of iter) {
       keysToDelete.push(key);
     }
-  
+
     if (keysToDelete.length > 0) {
       //@ts-ignore
-      await this.client.del(...keysToDelete); 
+      await this.client.del(...keysToDelete);
       console.log(`Deleted ${keysToDelete.length} keys`);
     } else {
       console.log('No matching keys found');
     }
-  
+
     return keysToDelete.length;
   }
-  
-  
 
   async close() {
     if (!this.client) return;

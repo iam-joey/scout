@@ -25,15 +25,14 @@ router.post('/webhook', async (req, res) => {
   }
 });
 
-
-router.get("/check",async(req:any,res:any)=>{
-  const data=await RedisService.getInstance().listKeys();
+router.get('/check', async (req: any, res: any) => {
+  const data = await RedisService.getInstance().listKeys();
   res.json(data);
-})
+});
 
-router.get("/delete",async(req:any,res:any)=>{
-  const data=await RedisService.getInstance().deleteAllKeys();
+router.get('/delete', async (req: any, res: any) => {
+  const data = await RedisService.getInstance().deleteAllKeys();
   res.json(data);
-})
+});
 
 export default router;

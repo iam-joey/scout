@@ -9,17 +9,19 @@ const REDIS_TTL = 60;
  */
 export async function startNftOwnersSearch(chatId: number, messageId: number) {
   const redis = RedisService.getInstance();
-  
+
   await redis.del(`nft_owners_search:${chatId}`);
-  await redis.set(`nft_owners_search:${chatId}`, 'waiting_for_address', REDIS_TTL);
-  
+  await redis.set(
+    `nft_owners_search:${chatId}`,
+    'waiting_for_address',
+    REDIS_TTL,
+  );
+
   await sendMessage(TELEGRAM_BASE_URL, {
     chat_id: chatId,
     text: 'Please enter the NFT collection address:',
     reply_markup: {
-      inline_keyboard: [
-        [{ text: '🔙 Cancel', callback_data: '/main' }],
-      ],
+      inline_keyboard: [[{ text: '🔙 Cancel', callback_data: '/main' }]],
     },
   });
 }
@@ -54,17 +56,24 @@ export async function searchNftOwners(chatId: number, address: string) {
     }
 
     // Format the data
-    const formattedData = response.data.map((item: any, index: number) => 
-      `Owner ${index + 1}:\n` +
-      `Address: ${item.owner}\n` +
-      `Nft's Held: ${item.amount}\n` +
-      `-------------------`
-    ).join('\n\n');
+    const formattedData = response.data
+      .map(
+        (item: any, index: number) =>
+          `Owner ${index + 1}:\n` +
+          `Address: ${item.owner}\n` +
+          `Nft's Held: ${item.amount}\n` +
+          `-------------------`,
+      )
+      .join('\n\n');
 
     // Create and send file
     const formData = new FormData();
     formData.append('chat_id', chatId.toString());
-    formData.append('document', new Blob([formattedData], { type: 'text/plain' }), 'nft_owners.txt');
+    formData.append(
+      'document',
+      new Blob([formattedData], { type: 'text/plain' }),
+      'nft_owners.txt',
+    );
     formData.append('caption', `NFT Collection Owners - ${address}`);
 
     await fetch(`${TELEGRAM_BASE_URL}/sendDocument`, {
@@ -78,7 +87,12 @@ export async function searchNftOwners(chatId: number, address: string) {
       text: 'What would you like to do next?',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🔍 Search Another Collection', callback_data: '/nftowners' }],
+          [
+            {
+              text: '🔍 Search Another Collection',
+              callback_data: '/nftowners',
+            },
+          ],
           [{ text: '🔙 Main Menu', callback_data: '/main' }],
         ],
       },

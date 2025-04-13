@@ -1,5 +1,9 @@
 import { TELEGRAM_BASE_URL } from '../../../utils/constant';
-import { makeVybeRequest, sendMessage, updateMessage } from '../../../utils/helpers';
+import {
+  makeVybeRequest,
+  sendMessage,
+  updateMessage,
+} from '../../../utils/helpers';
 import { RedisService } from '../../../services/redisService';
 
 // Constants
@@ -8,7 +12,10 @@ const REDIS_TTL = 60;
 /**
  * Initialize Program Details flow
  */
-export async function initializeProgramDetailsFlow(chatId: number, messageId: number) {
+export async function initializeProgramDetailsFlow(
+  chatId: number,
+  messageId: number,
+) {
   await updateMessage(TELEGRAM_BASE_URL, {
     chat_id: chatId,
     message_id: messageId,
@@ -16,10 +23,15 @@ export async function initializeProgramDetailsFlow(chatId: number, messageId: nu
     parse_mode: 'HTML' as 'HTML',
     reply_markup: {
       inline_keyboard: [
-        [{ text: '🔍 Enter Program ID', callback_data: '/sub-programs_details_fetch' }],
-        [{ text: '🔙 Back', callback_data: '/programs' }]
-      ]
-    }
+        [
+          {
+            text: '🔍 Enter Program ID',
+            callback_data: '/sub-programs_details_fetch',
+          },
+        ],
+        [{ text: '🔙 Back', callback_data: '/programs' }],
+      ],
+    },
   });
 }
 
@@ -28,17 +40,21 @@ export async function initializeProgramDetailsFlow(chatId: number, messageId: nu
  */
 export async function promptProgramIdForDetails(chatId: number) {
   const redis = RedisService.getInstance();
-  await redis.set(`program_details_state:${chatId}`, 'waiting_for_program_id', REDIS_TTL);
-  
+  await redis.set(
+    `program_details_state:${chatId}`,
+    'waiting_for_program_id',
+    REDIS_TTL,
+  );
+
   await sendMessage(TELEGRAM_BASE_URL, {
     chat_id: chatId,
     text: '<b>🔍 Enter Program ID</b>\n\nPlease enter the <b>Solana Program ID</b> to fetch details for:\n\n<i>Note: Program ID should be a valid Solana public key (base58, 32-44 characters)</i>',
     parse_mode: 'HTML' as 'HTML',
     reply_markup: {
       inline_keyboard: [
-        [{ text: '🔙 Cancel', callback_data: '/sub-programs_details' }]
-      ]
-    }
+        [{ text: '🔙 Cancel', callback_data: '/sub-programs_details' }],
+      ],
+    },
   });
 }
 
@@ -64,10 +80,15 @@ export async function fetchProgramDetails(chatId: number, programId: string) {
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🔄 Try Again', callback_data: '/sub-programs_details_fetch' }],
-            [{ text: '🔙 Back', callback_data: '/sub-programs_details' }]
-          ]
-        }
+            [
+              {
+                text: '🔄 Try Again',
+                callback_data: '/sub-programs_details_fetch',
+              },
+            ],
+            [{ text: '🔙 Back', callback_data: '/sub-programs_details' }],
+          ],
+        },
       });
       return;
     }
@@ -75,53 +96,57 @@ export async function fetchProgramDetails(chatId: number, programId: string) {
     await sendMessage(TELEGRAM_BASE_URL, {
       chat_id: chatId,
       text: '<b>🔄 Fetching Program Details...</b>',
-      parse_mode: 'HTML'
+      parse_mode: 'HTML',
     });
 
     // Fetch program details
     const response = await makeVybeRequest(`program/${programId}`);
-    console.log("response", response);  
-    if (!response ) {
+    console.log('response', response);
+    if (!response) {
       throw new Error('No program data found');
     }
-    
-    const data = response
-    
+
+    const data = response;
+
     // Format the program details
-    let formattedDetails = 
-  `<b>📛 Name:</b> ${data.friendlyName || 'N/A'}\n` +
-  `<b>🧠 Entity:</b> ${data.entityName || 'N/A'}\n` +
-  `<b>📝 Description:</b> ${data.programDescription || 'N/A'}\n\n` +
-  `<b>🆔 Program ID:</b> <code>${data.programId}</code>\n` +
-  `<b>👥 DAU:</b> ${data.dau ?? 'N/A'}\n` +
-  `<b>📈 New Users (1d):</b> ${data.newUsersChange1d ?? 'N/A'}\n` +
-  `<b>🔁 Instructions (1d):</b> ${data.instructions1d ?? 'N/A'}\n\n`;
+    let formattedDetails =
+      `<b>📛 Name:</b> ${data.friendlyName || 'N/A'}\n` +
+      `<b>🧠 Entity:</b> ${data.entityName || 'N/A'}\n` +
+      `<b>📝 Description:</b> ${data.programDescription || 'N/A'}\n\n` +
+      `<b>🆔 Program ID:</b> <code>${data.programId}</code>\n` +
+      `<b>👥 DAU:</b> ${data.dau ?? 'N/A'}\n` +
+      `<b>📈 New Users (1d):</b> ${data.newUsersChange1d ?? 'N/A'}\n` +
+      `<b>🔁 Instructions (1d):</b> ${data.instructions1d ?? 'N/A'}\n\n`;
 
-if (data.idlUrl) {
-  formattedDetails += `<b>🔗 IDL:</b> <a href="${data.idlUrl}">View IDL</a>\n`;
-}
+    if (data.idlUrl) {
+      formattedDetails += `<b>🔗 IDL:</b> <a href="${data.idlUrl}">View IDL</a>\n`;
+    }
 
-if (data.labels?.length > 0) {
-  formattedDetails += `<b>🏷️ Labels:</b> ${data.labels.join(', ')}\n`;
-}
+    if (data.labels?.length > 0) {
+      formattedDetails += `<b>🏷️ Labels:</b> ${data.labels.join(', ')}\n`;
+    }
 
-if (data.logoUrl) {
-  formattedDetails += `<b>🖼️ Logo:</b> <a href="${data.logoUrl}">View Logo</a>`;
-}
+    if (data.logoUrl) {
+      formattedDetails += `<b>🖼️ Logo:</b> <a href="${data.logoUrl}">View Logo</a>`;
+    }
 
-await sendMessage(TELEGRAM_BASE_URL, {
-  chat_id: chatId,
-  text: `<b>🔍 Program Details</b>\n\n${formattedDetails}`,
-  parse_mode: 'HTML' as 'HTML',
-  disable_web_page_preview: true,
-  reply_markup: {
-    inline_keyboard: [
-      [{ text: '🔄 Fetch Another', callback_data: '/sub-programs_details_fetch' }],
-      [{ text: '🔙 Programs Menu', callback_data: '/programs' }]
-    ]
-  }
-});
-
+    await sendMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      text: `<b>🔍 Program Details</b>\n\n${formattedDetails}`,
+      parse_mode: 'HTML' as 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: '🔄 Fetch Another',
+              callback_data: '/sub-programs_details_fetch',
+            },
+          ],
+          [{ text: '🔙 Programs Menu', callback_data: '/programs' }],
+        ],
+      },
+    });
   } catch (error) {
     console.error('Error in fetchProgramDetails:', error);
     await sendMessage(TELEGRAM_BASE_URL, {
@@ -130,10 +155,15 @@ await sendMessage(TELEGRAM_BASE_URL, {
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🔄 Try Again', callback_data: '/sub-programs_details_fetch' }],
-          [{ text: '🔙 Back', callback_data: '/sub-programs_details' }]
-        ]
-      }
+          [
+            {
+              text: '🔄 Try Again',
+              callback_data: '/sub-programs_details_fetch',
+            },
+          ],
+          [{ text: '🔙 Back', callback_data: '/sub-programs_details' }],
+        ],
+      },
     });
   }
 }
