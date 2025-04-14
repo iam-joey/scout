@@ -78,6 +78,11 @@ import {
   promptMarketsAddress,
   handleMarketsPagination,
   fetchMarkets,
+  displayOhlcvSettings,
+  updateOhlcvResolution,
+  promptOhlcvTime,
+  promptOhlcvToken,
+  fetchOhlcvData,
 } from './maincommands/prices';
 
 // Constants
@@ -814,6 +819,29 @@ export const handleCallback = async (
         }
         return;
       }
+
+      // Handle OHLCV commands
+      if (subCommand.startsWith('prices_ohlcv_')) {
+        const action = subCommand.replace('prices_ohlcv_', '');
+        
+        if (action === 'settings') {
+          await displayOhlcvSettings(chatId, messageId);
+        }
+        else if (action.startsWith('resolution_')) {
+          const resolution = action.replace('resolution_', '');
+          await updateOhlcvResolution(chatId, resolution, messageId);
+        }
+        else if (action === 'timestart') {
+          await promptOhlcvTime(chatId, messageId, 'start');
+        }
+        else if (action === 'timeend') {
+          await promptOhlcvTime(chatId, messageId, 'end');
+        }
+        else if (action === 'fetch') {
+          await promptOhlcvToken(chatId, messageId);
+        }
+        return;
+      }
       
       // Handle markets pagination (short form)
       if (callbackData.startsWith('/sub-m_')) {
@@ -856,6 +884,51 @@ export const handleCallback = async (
             parse_mode: 'HTML' as 'HTML',
             reply_markup: {
               inline_keyboard: [[{ text: '🔙 Back', callback_data: '/prices' }]],
+            },
+          });
+        }
+        return;
+      }
+
+      // Handle OHLCV pagination (short form)
+      if (callbackData.startsWith('/sub-o_')) {
+        try {
+          const redis = RedisService.getInstance();
+          const tokenAddress = await redis.get(`ohlcv_token:${chatId}`);
+          
+          if (!tokenAddress) {
+            await updateMessage(TELEGRAM_BASE_URL, {
+              chat_id: chatId,
+              message_id: messageId,
+              text: '<b>❌ Error</b>\n\nSession expired. Please try again.',
+              parse_mode: 'HTML' as 'HTML',
+              reply_markup: {
+                inline_keyboard: [[{ text: '🔙 Back', callback_data: '/sub-prices_ohlcv_settings' }]],
+              },
+            });
+            return;
+          }
+
+          const page = parseInt(callbackData.replace('/sub-o_', ''));
+          
+          // Show loading message
+          await updateMessage(TELEGRAM_BASE_URL, {
+            chat_id: chatId,
+            message_id: messageId,
+            text: '⏳ <b>Loading OHLCV data...</b>',
+            parse_mode: 'HTML' as 'HTML',
+          });
+          
+          await fetchOhlcvData(chatId, tokenAddress, page, messageId);
+        } catch (error) {
+          console.error('Error handling OHLCV pagination:', error);
+          await updateMessage(TELEGRAM_BASE_URL, {
+            chat_id: chatId,
+            message_id: messageId,
+            text: '<b>❌ Error</b>\n\nFailed to load OHLCV data. Please try again.',
+            parse_mode: 'HTML' as 'HTML',
+            reply_markup: {
+              inline_keyboard: [[{ text: '🔙 Back', callback_data: '/sub-prices_ohlcv_settings' }]],
             },
           });
         }

@@ -193,6 +193,7 @@ export const makeVybeRequest = async (
   body?: unknown,
 ) => {
   try {
+    console.log("the api endpoint is", endpoint)
     const response = await fetch(`${VYBE_API_BASE_URL}/${endpoint}`, {
       method,
       headers: {

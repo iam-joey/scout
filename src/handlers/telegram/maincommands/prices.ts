@@ -10,6 +10,10 @@ import { createPaginationButtons } from '../utils/formatters';
 const REDIS_TTL = 300; // 5 minutes
 const ITEMS_PER_PAGE = 10;
 
+// OHLCV Constants
+const RESOLUTIONS = ['1s', '1m', '3m', '5m', '15m', '30m', '1h', '2h', '3h', '4h', '1d', '1w', '1mo', '1y'];
+const DEFAULT_RESOLUTION = '1d';
+
 interface PriceProgram {
   programId: string;
   programName: string;
@@ -47,6 +51,12 @@ export async function displayPriceProgramsMenu(chatId: number, messageId?: numbe
           {
             text: '📈 Markets',
             callback_data: '/sub-prices_markets_prompt',
+          },
+        ],
+        [
+          {
+            text: '📊 Token OHLCV',
+            callback_data: '/sub-prices_ohlcv_settings',
           },
         ],
         [{ text: '🔙 Back to Main Menu', callback_data: '/main' }],
@@ -359,4 +369,255 @@ export async function handleMarketsPagination(
   messageId: number,
 ) {
   await fetchMarkets(chatId, programId, page, messageId);
+}
+
+/**
+ * Display OHLCV settings
+ */
+export async function displayOhlcvSettings(
+  chatId: number,
+  messageId?: number,
+): Promise<void> {
+  const redis = RedisService.getInstance();
+  const resolution = await redis.get(`ohlcv_resolution:${chatId}`) || DEFAULT_RESOLUTION;
+  const timeStart = await redis.get(`ohlcv_time_start:${chatId}`);
+  const timeEnd = await redis.get(`ohlcv_time_end:${chatId}`);
+
+  const resolutionButtons = RESOLUTIONS.map(res => ({
+    text: `${res}${res === resolution ? ' ✅' : ''}`,
+    callback_data: `/sub-prices_ohlcv_resolution_${res}`,
+  }));
+
+  // Split resolution buttons into rows of 4
+  const resolutionRows = [];
+  for (let i = 0; i < resolutionButtons.length; i += 4) {
+    resolutionRows.push(resolutionButtons.slice(i, i + 4));
+  }
+
+  const message = {
+    chat_id: chatId,
+    text: '<b>📊 Token OHLCV Settings</b>\n\n' +
+          `Resolution: ${resolution}\n` +
+          `Time Start: ${timeStart ? `${timeStart} (${new Date(parseInt(timeStart) * 1000).toUTCString()})` : 'Not set'}\n` +
+          `Time End: ${timeEnd ? `${timeEnd} (${new Date(parseInt(timeEnd) * 1000).toUTCString()})` : 'Not set'}`,
+    parse_mode: 'HTML' as 'HTML',
+    reply_markup: {
+      inline_keyboard: [
+        ...resolutionRows,
+        [
+          {
+            text: '⏰ Set Time Start',
+            callback_data: '/sub-prices_ohlcv_timestart',
+          },
+          {
+            text: '⏰ Set Time End',
+            callback_data: '/sub-prices_ohlcv_timeend',
+          },
+        ],
+        [
+          {
+            text: '🔍 Fetch Data',
+            callback_data: '/sub-prices_ohlcv_fetch',
+          },
+        ],
+        [{ text: '🔙 Back', callback_data: '/prices' }],
+      ],
+    },
+  };
+
+  if (messageId) {
+    await updateMessage(TELEGRAM_BASE_URL, { ...message, message_id: messageId });
+  } else {
+    await sendMessage(TELEGRAM_BASE_URL, message);
+  }
+}
+
+/**
+ * Update OHLCV resolution
+ */
+export async function updateOhlcvResolution(
+  chatId: number,
+  resolution: string,
+  messageId: number,
+): Promise<void> {
+  const redis = RedisService.getInstance();
+  await redis.set(`ohlcv_resolution:${chatId}`, resolution, REDIS_TTL);
+  await displayOhlcvSettings(chatId, messageId);
+}
+
+/**
+ * Prompt for OHLCV time input
+ */
+export async function promptOhlcvTime(
+  chatId: number,
+  messageId: number,
+  type: 'start' | 'end',
+): Promise<void> {
+  const redis = RedisService.getInstance();
+  
+  // Store message ID for later use
+  await redis.set(`ohlcv_last_message:${chatId}`, messageId.toString(), REDIS_TTL);
+  
+  // Set user state with the correct key
+  await redis.set(`userState-${chatId}`, `ohlcv_time${type}`, REDIS_TTL);
+  
+  // Get current time in Unix timestamp
+  const now = Math.floor(Date.now() / 1000);
+  
+  await updateMessage(TELEGRAM_BASE_URL, {
+    chat_id: chatId,
+    message_id: messageId,
+    text: `<b>⏰ Set Time ${type === 'start' ? 'Start' : 'End'}</b>\n\nPlease enter the Unix timestamp.\n\nCurrent time: ${now} (${new Date(now * 1000).toUTCString()})`,
+    parse_mode: 'HTML' as 'HTML',
+  });
+}
+
+/**
+ * Prompt for token address
+ */
+export async function promptOhlcvToken(
+  chatId: number,
+  messageId: number,
+): Promise<void> {
+  const redis = RedisService.getInstance();
+  
+  // Store message ID for later use
+  await redis.set(`ohlcv_last_message:${chatId}`, messageId.toString(), REDIS_TTL);
+  
+  // Set user state
+  await redis.set(`userState-${chatId}`, 'ohlcv_token', REDIS_TTL);
+  
+  await updateMessage(TELEGRAM_BASE_URL, {
+    chat_id: chatId,
+    message_id: messageId,
+    text: '<b>🔍 Token OHLCV</b>\n\nPlease enter the token address:\n\nExample: So11111111111111111111111111111111111111112',
+    parse_mode: 'HTML' as 'HTML',
+  });
+}
+
+/**
+ * Update OHLCV time settings
+ */
+export async function updateOhlcvTime(
+  chatId: number,
+  type: 'start' | 'end',
+  timestamp: number,
+  messageId?: number,
+): Promise<void> {
+  const redis = RedisService.getInstance();
+  
+  // Store the timestamp
+  await redis.set(`ohlcv_time_${type}:${chatId}`, timestamp.toString(), REDIS_TTL);
+  
+  // Display updated settings
+  await displayOhlcvSettings(chatId, messageId);
+}
+
+/**
+ * Fetch OHLCV data
+ */
+export async function fetchOhlcvData(
+  chatId: number,
+  tokenAddress: string,
+  page: number = 0,
+  messageId?: number,
+): Promise<void> {
+  try {
+    const redis = RedisService.getInstance();
+    const resolution = await redis.get(`ohlcv_resolution:${chatId}`) || DEFAULT_RESOLUTION;
+    const timeStart = await redis.get(`ohlcv_time_start:${chatId}`);
+    const timeEnd = await redis.get(`ohlcv_time_end:${chatId}`);
+
+    // Build query params
+    const params = new URLSearchParams();
+    params.append('resolution', resolution);
+    params.append('limit', '10');
+    params.append('page', page.toString());
+    if (timeStart) params.append('timeStart', timeStart);
+    if (timeEnd) params.append('timeEnd', timeEnd);
+
+    // Store token address for pagination
+    await redis.set(`ohlcv_token:${chatId}`, tokenAddress, REDIS_TTL);
+
+    // Fetch data
+    const response = await makeVybeRequest(`price/${tokenAddress}/token-ohlcv?${params.toString()}`);
+    if (!response || !response.data) {
+      throw new Error('No OHLCV data found');
+    }
+
+    const data = response.data;
+    let message = '<b>📊 Token OHLCV Data</b>\n\n';
+    
+    // Helper function to format numbers
+    const formatNumber = (num: number): string => {
+      return Number(num).toFixed(2);
+    };
+
+    // Helper function to format timestamp
+    const formatTimestamp = (timestamp: number): string => {
+      const date = new Date(timestamp * 1000);
+      return date.toLocaleString('en-US', { 
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    };
+
+    data.forEach((item: any) => {
+      message += `\n🕒 <b>Time:</b>\n   ${formatTimestamp(item.time)}\n\n`;
+      message += `📊 <b>Price Data:</b>\n`;
+      message += `   Open:  $${formatNumber(item.open)}\n`;
+      message += `   High:  $${formatNumber(item.high)}\n`;
+      message += `   Low:   $${formatNumber(item.low)}\n`;
+      message += `   Close: $${formatNumber(item.close)}\n\n`;
+      message += `📈 <b>Volume:</b>\n`;
+      message += `   ${formatNumber(item.volume)} tokens\n`;
+      message += `   $${formatNumber(item.volumeUsd)}\n`;
+      message += `\n───────────────────\n`;
+    });
+
+    // Create pagination buttons
+    const paginationButtons = createPaginationButtons(
+      page,
+      page + (data.length === 10 ? 1 : 0),
+      '/sub-o_' // Short form for OHLCV pagination
+    );
+
+    const finalMessage = {
+      chat_id: chatId,
+      text: message,
+      parse_mode: 'HTML' as 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          paginationButtons,
+          [{ text: '🔙 Back', callback_data: '/sub-prices_ohlcv_settings' }],
+        ],
+      },
+    };
+
+    if (messageId) {
+      await updateMessage(TELEGRAM_BASE_URL, { ...finalMessage, message_id: messageId });
+    } else {
+      await sendMessage(TELEGRAM_BASE_URL, finalMessage);
+    }
+  } catch (error) {
+    console.error('Error in fetchOhlcvData:', error);
+    const errorMessage = {
+      chat_id: chatId,
+      text: '<b>❌ Error</b>\n\nFailed to fetch OHLCV data. Please try again.',
+      parse_mode: 'HTML' as 'HTML',
+      reply_markup: {
+        inline_keyboard: [[{ text: '🔙 Back', callback_data: '/sub-prices_ohlcv_settings' }]],
+      },
+    };
+
+    if (messageId) {
+      await updateMessage(TELEGRAM_BASE_URL, { ...errorMessage, message_id: messageId });
+    } else {
+      await sendMessage(TELEGRAM_BASE_URL, errorMessage);
+    }
+  }
 }

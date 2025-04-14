@@ -9,6 +9,7 @@ import {
   makeVybeRequest,
   sendErrorMessage,
   sendMessage,
+  updateMessage,
 } from '../../utils/helpers';
 import { displayMainMenu } from './mainMenu';
 import { searchAddress } from './maincommands/knownaccounts';
@@ -34,7 +35,7 @@ import {
   updateFindActiveUsersDays,
 } from './maincommands/findActiveUsersData';
 import { fetchTokenDetails, fetchTopTokenHolders, updateTokenTransfersFilter } from './maincommands/tokens';
-import { fetchMarkets } from './maincommands/prices';
+import { fetchOhlcvData, displayOhlcvSettings, updateOhlcvTime, fetchMarkets } from './maincommands/prices';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
@@ -426,6 +427,88 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
 
           await fetchMarkets(chatId, programId);
           await redis.del(`prices_markets_state:${chatId}`);
+        }
+        // Handle OHLCV token address input
+        else if (userState === 'ohlcv_token') {
+          console.log('Handling OHLCV token address input');
+          const tokenAddress = messageText.trim();
+          if (!isValidSolanaAddress(tokenAddress)) {
+            await sendErrorMessage(baseUrl, chatId, 'Invalid token address. Please enter a valid Solana address.');
+            return;
+          }
+          
+          // Store token address in Redis
+          await redis.set(`ohlcv_token:${chatId}`, tokenAddress, REDIS_TTL);
+          
+          // Show loading message
+          await sendMessage(baseUrl, {
+            chat_id: chatId,
+            text: '⏳ <b>Fetching OHLCV data...</b>\n\nPlease wait while we fetch the OHLCV data for the provided token.',
+            parse_mode: 'HTML' as 'HTML',
+          });
+
+          await fetchOhlcvData(chatId, tokenAddress, 0);
+          await redis.del(`userState-${userId}`);
+        }
+        // Handle OHLCV time start input
+        else if (userState === 'ohlcv_timestart') {
+          console.log('Handling OHLCV time start input');
+          const timestamp = parseInt(messageText.trim());
+          if (isNaN(timestamp)) {
+            await sendErrorMessage(baseUrl, chatId, 'Invalid timestamp. Please enter a valid Unix timestamp.');
+            return;
+          }
+          
+          // Store start time in Redis
+          await redis.set(`ohlcv_time_start:${chatId}`, timestamp.toString(), REDIS_TTL);
+          
+          // Get the last message ID from Redis
+          const lastMessageId = await redis.get(`ohlcv_last_message:${chatId}`);
+          const messageId = lastMessageId ? parseInt(lastMessageId) : undefined;
+          
+          // Send a new confirmation message
+          const response = await sendMessage(TELEGRAM_BASE_URL, {
+            chat_id: chatId,
+            text: `<b>✅ Start Time Set</b>\n\nStart time has been set to: ${timestamp} (${new Date(timestamp * 1000).toUTCString()})\n\nPlease wait while we update the settings...`,
+            parse_mode: 'HTML' as 'HTML',
+          });
+          
+          // Display updated settings after a short delay
+          setTimeout(async () => {
+            await displayOhlcvSettings(chatId, response.message_id);
+          }, 1500);
+          
+          await redis.del(`userState-${userId}`);
+        }
+        // Handle OHLCV time end input
+        else if (userState === 'ohlcv_timeend') {
+          console.log('Handling OHLCV time end input');
+          const timestamp = parseInt(messageText.trim());
+          if (isNaN(timestamp)) {
+            await sendErrorMessage(baseUrl, chatId, 'Invalid timestamp. Please enter a valid Unix timestamp.');
+            return;
+          }
+          
+          // Store end time in Redis
+          await redis.set(`ohlcv_time_end:${chatId}`, timestamp.toString(), REDIS_TTL);
+          
+          // Get the last message ID from Redis
+          const lastMessageId = await redis.get(`ohlcv_last_message:${chatId}`);
+          const messageId = lastMessageId ? parseInt(lastMessageId) : undefined;
+          
+          // Send a new confirmation message
+          const response = await sendMessage(baseUrl, {
+            chat_id: chatId,
+            text: `<b>✅ End Time Set</b>\n\nEnd time has been set to: ${timestamp} (${new Date(timestamp * 1000).toUTCString()})\n\nPlease wait while we update the settings...`,
+            parse_mode: 'HTML' as 'HTML',
+          });
+          
+          // Display updated settings after a short delay
+          setTimeout(async () => {
+            await displayOhlcvSettings(chatId, response.message_id);
+          }, 1500);
+          
+          await redis.del(`userState-${userId}`);
         }
         // Handle unknown commands
         else {
