@@ -5,16 +5,16 @@ import {
   updateMessage,
 } from '../../../utils/helpers';
 import { RedisService } from '../../../services/redisService';
+import type { TokenListSettings } from './tokenList';
+
+// Re-export token-related functionality
+export * from './tokenDetails';
+export * from './tokenHolders';
+export * from './tokenTransfers';
+export * from './tokenList';
 
 // Constants
 const REDIS_TTL = 60;
-
-// Token list settings interface
-interface TokenListSettings {
-  sortBy?: string;
-  sortDirection?: 'asc' | 'desc';
-  limit: number;
-}
 
 /**
  * Display tokens menu
@@ -78,7 +78,7 @@ async function initializeTokenListSettings(chatId: number) {
     const existingSettings = await redis.get(tokenListSettingsKey);
 
     if (!existingSettings) {
-      const defaultSettings: TokenListSettings = {
+      const defaultSettings = {
         sortBy: undefined,
         sortDirection: undefined,
         limit: 10,
@@ -1288,10 +1288,10 @@ export async function fetchTokenTransfers(
       apiUrl += `&receiverAddress=${filters.receiverAddress}`;
     }
     
-    // Send loading message
+    // Show initial loading message with progress bar
     const loadingMessage = {
       chat_id: chatId,
-      text: '<b>⏳ Processing</b>\n\nFetching token transfers...\n\nPlease wait...',
+      text: `<b>🔄 Fetching Token Transfers</b>\n\n<i>Loading data</i> ⏳\n\n<code>⬛⬜⬜⬜⬜</code> 20%`,
       parse_mode: 'HTML' as 'HTML',
     };
     
@@ -1304,9 +1304,33 @@ export async function fetchTokenTransfers(
       const sentMessage = await sendMessage(TELEGRAM_BASE_URL, loadingMessage);
       messageId = sentMessage?.result?.message_id;
     }
+
+    // Update to 40%
+    await updateMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      message_id: messageId,
+      text: `<b>🔄 Fetching Token Transfers</b>\n\n<i>Loading data</i> ⏳\n\n<code>⬛⬛⬜⬜⬜</code> 40%`,
+      parse_mode: 'HTML' as 'HTML',
+    });
     
+    // Update to 60%
+    await updateMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      message_id: messageId,
+      text: `<b>🔄 Fetching Token Transfers</b>\n\n<i>Loading data</i> ⏳\n\n<code>⬛⬛⬛⬜⬜</code> 60%`,
+      parse_mode: 'HTML' as 'HTML',
+    });
+
     // Fetch token transfers
     const response = await makeVybeRequest(apiUrl);
+
+    // Update to 80%
+    await updateMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      message_id: messageId,
+      text: `<b>🔄 Fetching Token Transfers</b>\n\n<i>Loading data</i> ⏳\n\n<code>⬛⬛⬛⬛⬜</code> 80%`,
+      parse_mode: 'HTML' as 'HTML',
+    });
     
     if (!response || !response.transfers || response.transfers.length === 0) {
       const noDataMessage = {
@@ -1332,6 +1356,14 @@ export async function fetchTokenTransfers(
       return;
     }
     
+    // Update to 100%
+    await updateMessage(TELEGRAM_BASE_URL, {
+      chat_id: chatId,
+      message_id: messageId,
+      text: `<b>🔄 Fetching Token Transfers</b>\n\n<i>Loading data</i> ⏳\n\n<code>⬛⬛⬛⬛⬛</code> 100%`,
+      parse_mode: 'HTML' as 'HTML',
+    });
+
     // Format transfers data
     let transfersHtml = '';
     response.transfers.forEach((transfer: any, index: number) => {

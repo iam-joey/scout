@@ -32,6 +32,9 @@ export async function displayMainMenu(
           { text: '📁 Programs Data', callback_data: '/programs' },
           { text: '💸 Tokens', callback_data: '/tokens' },
         ],
+        [
+          { text: '💹 Prices', callback_data: '/prices' },
+        ],
       ],
     },
   };

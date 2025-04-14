@@ -66,10 +66,19 @@ import {
   formatWalletPnlHtml,
   isValidSolanaAddress,
   makeVybeRequest,
+  sendErrorMessage,
   updateMessage,
 } from '../../utils/helpers';
 import { balances } from './maincommands/balances';
 import { displayMainMenu as displayMainMenuFromMain } from './mainMenu';
+import {
+  displayPriceProgramsMenu,
+  fetchPricePrograms,
+  handlePriceProgramsPagination,
+  promptMarketsAddress,
+  handleMarketsPagination,
+  fetchMarkets,
+} from './maincommands/prices';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
@@ -589,6 +598,7 @@ export const handleCallback = async (
         return;
       }
 
+
       if (subCommand === 'nftBalances') {
         await handleNftBalanceRequest(userId, chatId, messageId, baseUrl);
         return;
@@ -782,6 +792,76 @@ export const handleCallback = async (
         }
         return;
       }
+      // Handle price programs commands
+      if (subCommand.startsWith('prices_programs_')) {
+        const action = subCommand.replace('prices_programs_', '');
+        if (action === 'fetch') {
+          console.log('Fetching price programs');
+          await fetchPricePrograms(chatId, 0, messageId);
+        } else if (action.startsWith('page_')) {
+          console.log('Handling price programs pagination');
+          const page = parseInt(action.replace('page_', ''));
+          await handlePriceProgramsPagination(chatId, page, messageId);
+        }
+      }
+      
+      // Handle market commands
+      if (subCommand.startsWith('prices_markets_')) {
+        const action = subCommand.replace('prices_markets_', '');
+        if (action === 'prompt') {
+          console.log('Prompting for market address');
+          await promptMarketsAddress(chatId, messageId);
+        }
+        return;
+      }
+      
+      // Handle markets pagination (short form)
+      if (callbackData.startsWith('/sub-m_')) {
+        try {
+          console.log('Handling markets pagination:', callbackData);
+          const redis = RedisService.getInstance();
+          const programId = await redis.get(`markets_program:${chatId}`);
+          
+          if (!programId) {
+            await updateMessage(TELEGRAM_BASE_URL, {
+              chat_id: chatId,
+              message_id: messageId,
+              text: '<b>❌ Error</b>\n\nSession expired. Please try again.',
+              parse_mode: 'HTML' as 'HTML',
+              reply_markup: {
+                inline_keyboard: [[{ text: '🔙 Back', callback_data: '/prices' }]],
+              },
+            });
+            return;
+          }
+
+          const page = parseInt(callbackData.replace('/sub-m_', ''));
+          console.log('Fetching page', page, 'for program', programId);
+          
+          // Show loading message
+          await updateMessage(TELEGRAM_BASE_URL, {
+            chat_id: chatId,
+            message_id: messageId,
+            text: '⏳ <b>Loading market data...</b>',
+            parse_mode: 'HTML' as 'HTML',
+          });
+          
+          await fetchMarkets(chatId, programId, page, messageId);
+        } catch (error) {
+          console.error('Error handling markets pagination:', error);
+          await updateMessage(TELEGRAM_BASE_URL, {
+            chat_id: chatId,
+            message_id: messageId,
+            text: '<b>❌ Error</b>\n\nFailed to load market data. Please try again.',
+            parse_mode: 'HTML' as 'HTML',
+            reply_markup: {
+              inline_keyboard: [[{ text: '🔙 Back', callback_data: '/prices' }]],
+            },
+          });
+        }
+        return;
+      }
+      
       return;
     }
 
@@ -811,8 +891,13 @@ export const handleCallback = async (
       case '/tokens':
         await displayTokensMenu(chatId, messageId);
         break;
+      case '/prices':
+        console.log('Displaying price programs menu');
+        await displayPriceProgramsMenu(chatId, messageId);
+        break;
       default:
         console.log('Unknown callback:', callbackData);
+        await sendErrorMessage(TELEGRAM_BASE_URL, chatId, 'Unknown callback');
         break;
     }
   } catch (error) {

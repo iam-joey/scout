@@ -34,6 +34,7 @@ import {
   updateFindActiveUsersDays,
 } from './maincommands/findActiveUsersData';
 import { fetchTokenDetails, fetchTopTokenHolders, updateTokenTransfersFilter } from './maincommands/tokens';
+import { fetchMarkets } from './maincommands/prices';
 
 // Constants
 const TOKENS_PER_PAGE = 5;
@@ -248,6 +249,7 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
     const tokenDetailsState = await redis.get(`token_details_state:${userId}`);
     const tokenHoldersState = await redis.get(`token_holders_state:${userId}`);
     const tokenTransfersState = await redis.get(`token_transfers_state:${userId}`);
+    const priceMarketsState = await redis.get(`prices_markets_state:${chatId}`);
 
     // Handle commands and states
     switch (messageText) {
@@ -258,23 +260,23 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
       default:
         // Handle NFT balance request
         if (userState === 'nftBalances') {
-          console.log('inside nftBalances');
           await handleNftBalanceResponse(messageText, chatId, userId, baseUrl);
+          await redis.del(`nft_balances:${chatId}`);
         }
         // Handle token balance request
         else if (userState === 'tokenBalances') {
-          console.log('inside tokenBalances');
           await handleTokenBalanceResponse(
             messageText,
             chatId,
             userId,
             baseUrl,
           );
+          await redis.del(`token_balances:${chatId}`);
         }
         // Handle wallet PnL address request
         else if (userState === 'walletPnlAddress') {
-          console.log('inside walletPnlAddress');
           await handleWalletPnlResponse(messageText, chatId, userId, baseUrl);
+          await redis.del(`wallet_pnl_address:${chatId}`);
         }
         // Handle known accounts search
         else if (searchState === 'waiting_for_address') {
@@ -293,7 +295,6 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
         }
         // Handle NFT owners search
         else if (nftSearchState === 'waiting_for_address') {
-          console.log('nftSearchState');
           if (!isValidSolanaAddress(messageText)) {
             await sendErrorMessage(
               baseUrl,
@@ -303,8 +304,8 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
             return;
           }
           const redis = RedisService.getInstance();
-          await redis.del(`nft_owners_search:${chatId}`);
           await searchNftOwners(chatId, messageText);
+          await redis.del(`nft_owners_search:${chatId}`);
         }
         // Handle program ranking limit input
         else if (programRankingState === 'waiting_for_limit') {
@@ -406,6 +407,25 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
           } else {
             await updateTokenTransfersFilter(chatId, filterType, value, messageId);
           }
+        }
+        // Handle market address input
+        else if (priceMarketsState === 'waiting_for_address') {
+          console.log('Handling market address input');
+          const programId = messageText.trim();
+          if (!isValidSolanaAddress(programId)) {
+            await sendErrorMessage(baseUrl, chatId, 'Invalid program ID. Please enter a valid Solana address.');
+            return;
+          }
+          
+          // Show loading message
+          await sendMessage(baseUrl, {
+            chat_id: chatId,
+            text: '⏳ <b>Fetching market data...</b>\n\nPlease wait while we fetch the market data for the provided program.',
+            parse_mode: 'HTML' as 'HTML',
+          });
+
+          await fetchMarkets(chatId, programId);
+          await redis.del(`prices_markets_state:${chatId}`);
         }
         // Handle unknown commands
         else {

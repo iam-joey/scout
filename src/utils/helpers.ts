@@ -54,6 +54,7 @@ async function requestTelegram(
 }
 
 export async function sendMessage(base_url: string, body: TelegramSendMessage) {
+  console.log("here 4",base_url)
   return requestTelegram(base_url, 'sendMessage', body);
 }
 
@@ -205,7 +206,7 @@ export const makeVybeRequest = async (
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const data = await response.json();
-    console.log(data);
+    
     return data;
   } catch (error) {
     console.error('Error making Vybe request:', error);
