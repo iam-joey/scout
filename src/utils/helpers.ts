@@ -1,5 +1,5 @@
 import type { TelegramSendMessage } from '../types/telegram';
-import { VYBE_API_BASE_URL, VYBE_API_KEY, type HttpMethod } from './constant';
+import { TELEGRAM_BASE_URL, VYBE_API_BASE_URL, VYBE_API_KEY, type HttpMethod } from './constant';
 import { PublicKey } from '@solana/web3.js';
 
 interface TokenMetric {
@@ -381,3 +381,17 @@ export const formatTokenBalanceHtml = (
     },
   };
 };
+
+
+export async function deleteMessage(base_url: string, chatId: number, messageId: number) {
+  fetch(`${base_url}/deleteMessage`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      chat_id: chatId,
+      message_id: messageId,
+    }),
+  });
+}

@@ -3,6 +3,7 @@ import {
   makeVybeRequest,
   updateMessage,
   sendMessage,
+  deleteMessage,
 } from '../../../utils/helpers';
 import { RedisService } from '../../../services/redisService';
 
@@ -195,7 +196,7 @@ export async function handleKnownAccountsRequest(
       .map((account: any, index: number) => {
         ///@ts-ignore
         const labels =
-          account.labels.filter((label) => label).join(', ') || 'N/A';
+          account.labels.filter((label:any) => label).join(', ') || 'N/A';
         const logoUrl = account.logoUrl || 'N/A';
 
         return (
@@ -233,16 +234,7 @@ export async function handleKnownAccountsRequest(
     }
 
     // Delete the loading message
-    await fetch(`${TELEGRAM_BASE_URL}/deleteMessage`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        chat_id: chatId,
-        message_id: messageId,
-      }),
-    });
+    await deleteMessage(TELEGRAM_BASE_URL, chatId, messageId);
 
     // Now send a new message with navigation buttons
     await fetch(`${TELEGRAM_BASE_URL}/sendMessage`, {

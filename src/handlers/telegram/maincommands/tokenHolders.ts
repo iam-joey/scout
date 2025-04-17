@@ -5,7 +5,10 @@ import {
   sendMessage,
   updateMessage,
 } from '../../../utils/helpers';
-import { formatLargeNumber, createPaginationButtons } from '../utils/formatters';
+import {
+  formatLargeNumber,
+  createPaginationButtons,
+} from '../utils/formatters';
 
 const REDIS_TTL = 60;
 
@@ -54,7 +57,9 @@ export async function fetchTopTokenHolders(
     });
 
     // Fetch token holders
-    const response = await makeVybeRequest(`token/${mintAddress}/holders?page=${page}`);
+    const response = await makeVybeRequest(
+      `token/${mintAddress}/holders?page=${page}`,
+    );
 
     if (!response || !response.holders) {
       throw new Error('No token holders data found');
@@ -104,11 +109,7 @@ export async function fetchTopTokenHolders(
 
     // Store mint address for pagination
     const redis = RedisService.getInstance();
-    await redis.set(
-      `token_holders_mint:${chatId}`,
-      mintAddress,
-      REDIS_TTL * 5,
-    );
+    await redis.set(`token_holders_mint:${chatId}`, mintAddress, REDIS_TTL * 5);
 
     // Send final result
     await sendMessage(TELEGRAM_BASE_URL, {

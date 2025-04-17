@@ -11,7 +11,22 @@ const REDIS_TTL = 300; // 5 minutes
 const ITEMS_PER_PAGE = 10;
 
 // OHLCV Constants
-const RESOLUTIONS = ['1s', '1m', '3m', '5m', '15m', '30m', '1h', '2h', '3h', '4h', '1d', '1w', '1mo', '1y'];
+const RESOLUTIONS = [
+  '1s',
+  '1m',
+  '3m',
+  '5m',
+  '15m',
+  '30m',
+  '1h',
+  '2h',
+  '3h',
+  '4h',
+  '1d',
+  '1w',
+  '1mo',
+  '1y',
+];
 const DEFAULT_RESOLUTION = '1d';
 
 interface PriceProgram {
@@ -36,7 +51,10 @@ interface Market {
 /**
  * Display price programs menu
  */
-export async function displayPriceProgramsMenu(chatId: number, messageId?: number) {
+export async function displayPriceProgramsMenu(
+  chatId: number,
+  messageId?: number,
+) {
   const payload = {
     chat_id: chatId,
     text: '💰 Price Programs - Choose an option below:',
@@ -85,7 +103,7 @@ export async function fetchPricePrograms(
   try {
     // Show initial loading state
     const loadingText = `<b>🔄 Fetching Price Programs</b>\n\n<i>Loading data</i> ⏳\n\n<code>⬛⬜⬜⬜⬜</code> 20%`;
-    
+
     if (messageId) {
       await updateMessage(TELEGRAM_BASE_URL, {
         chat_id: chatId,
@@ -126,7 +144,7 @@ export async function fetchPricePrograms(
         throw new Error('No price programs data found');
       }
       programs = response.data;
-      
+
       // Cache the result
       await redis.set(cacheKey, JSON.stringify(programs), REDIS_TTL);
     }
@@ -245,7 +263,11 @@ export async function handlePriceProgramsPagination(
  */
 export async function promptMarketsAddress(chatId: number, messageId?: number) {
   const redis = RedisService.getInstance();
-  await redis.set(`prices_markets_state:${chatId}`, 'waiting_for_address', REDIS_TTL);
+  await redis.set(
+    `prices_markets_state:${chatId}`,
+    'waiting_for_address',
+    REDIS_TTL,
+  );
 
   const payload = {
     chat_id: chatId,
@@ -277,11 +299,12 @@ export async function fetchMarkets(
 ) {
   try {
     // Show loading message
-    
-    
+
     // Fetch market data first
-    const response = await makeVybeRequest(`price/markets?programId=${programId}&page=${page}&limit=10`);
-    console.log("here 5")
+    const response = await makeVybeRequest(
+      `price/markets?programId=${programId}&page=${page}&limit=10`,
+    );
+    console.log('here 5');
     if (!response || !response.data) {
       throw new Error('No market data found');
     }
@@ -308,7 +331,7 @@ export async function fetchMarkets(
     const paginationButtons = createPaginationButtons(
       page,
       page + (markets.length === 10 ? 1 : 0),
-      '/sub-m_' // Short form for markets pagination
+      '/sub-m_', // Short form for markets pagination
     );
 
     // Send final result
@@ -325,14 +348,14 @@ export async function fetchMarkets(
     };
 
     if (messageId) {
-      console.log("here 2")
+      console.log('here 2');
       await updateMessage(TELEGRAM_BASE_URL, {
         ...finalMessage,
         message_id: messageId,
       });
     } else {
-      console.log("here 3")
-      
+      console.log('here 3');
+
       await sendMessage(TELEGRAM_BASE_URL, finalMessage);
     }
   } catch (error) {
@@ -342,9 +365,7 @@ export async function fetchMarkets(
       text: '<b>❌ Error</b>\n\nUnable to fetch market details. Please try again.',
       parse_mode: 'HTML' as 'HTML',
       reply_markup: {
-        inline_keyboard: [
-          [{ text: '🔙 Back', callback_data: '/prices' }],
-        ],
+        inline_keyboard: [[{ text: '🔙 Back', callback_data: '/prices' }]],
       },
     };
 
@@ -379,11 +400,12 @@ export async function displayOhlcvSettings(
   messageId?: number,
 ): Promise<void> {
   const redis = RedisService.getInstance();
-  const resolution = await redis.get(`ohlcv_resolution:${chatId}`) || DEFAULT_RESOLUTION;
+  const resolution =
+    (await redis.get(`ohlcv_resolution:${chatId}`)) || DEFAULT_RESOLUTION;
   const timeStart = await redis.get(`ohlcv_time_start:${chatId}`);
   const timeEnd = await redis.get(`ohlcv_time_end:${chatId}`);
 
-  const resolutionButtons = RESOLUTIONS.map(res => ({
+  const resolutionButtons = RESOLUTIONS.map((res) => ({
     text: `${res}${res === resolution ? ' ✅' : ''}`,
     callback_data: `/sub-prices_ohlcv_resolution_${res}`,
   }));
@@ -396,10 +418,11 @@ export async function displayOhlcvSettings(
 
   const message = {
     chat_id: chatId,
-    text: '<b>📊 Token OHLCV Settings</b>\n\n' +
-          `Resolution: ${resolution}\n` +
-          `Time Start: ${timeStart ? `${timeStart} (${new Date(parseInt(timeStart) * 1000).toUTCString()})` : 'Not set'}\n` +
-          `Time End: ${timeEnd ? `${timeEnd} (${new Date(parseInt(timeEnd) * 1000).toUTCString()})` : 'Not set'}`,
+    text:
+      '<b>📊 Token OHLCV Settings</b>\n\n' +
+      `Resolution: ${resolution}\n` +
+      `Time Start: ${timeStart ? `${timeStart} (${new Date(parseInt(timeStart) * 1000).toUTCString()})` : 'Not set'}\n` +
+      `Time End: ${timeEnd ? `${timeEnd} (${new Date(parseInt(timeEnd) * 1000).toUTCString()})` : 'Not set'}`,
     parse_mode: 'HTML' as 'HTML',
     reply_markup: {
       inline_keyboard: [
@@ -426,7 +449,10 @@ export async function displayOhlcvSettings(
   };
 
   if (messageId) {
-    await updateMessage(TELEGRAM_BASE_URL, { ...message, message_id: messageId });
+    await updateMessage(TELEGRAM_BASE_URL, {
+      ...message,
+      message_id: messageId,
+    });
   } else {
     await sendMessage(TELEGRAM_BASE_URL, message);
   }
@@ -454,16 +480,20 @@ export async function promptOhlcvTime(
   type: 'start' | 'end',
 ): Promise<void> {
   const redis = RedisService.getInstance();
-  
+
   // Store message ID for later use
-  await redis.set(`ohlcv_last_message:${chatId}`, messageId.toString(), REDIS_TTL);
-  
+  await redis.set(
+    `ohlcv_last_message:${chatId}`,
+    messageId.toString(),
+    REDIS_TTL,
+  );
+
   // Set user state with the correct key
   await redis.set(`userState-${chatId}`, `ohlcv_time${type}`, REDIS_TTL);
-  
+
   // Get current time in Unix timestamp
   const now = Math.floor(Date.now() / 1000);
-  
+
   await updateMessage(TELEGRAM_BASE_URL, {
     chat_id: chatId,
     message_id: messageId,
@@ -480,13 +510,17 @@ export async function promptOhlcvToken(
   messageId: number,
 ): Promise<void> {
   const redis = RedisService.getInstance();
-  
+
   // Store message ID for later use
-  await redis.set(`ohlcv_last_message:${chatId}`, messageId.toString(), REDIS_TTL);
-  
+  await redis.set(
+    `ohlcv_last_message:${chatId}`,
+    messageId.toString(),
+    REDIS_TTL,
+  );
+
   // Set user state
   await redis.set(`userState-${chatId}`, 'ohlcv_token', REDIS_TTL);
-  
+
   await updateMessage(TELEGRAM_BASE_URL, {
     chat_id: chatId,
     message_id: messageId,
@@ -505,10 +539,14 @@ export async function updateOhlcvTime(
   messageId?: number,
 ): Promise<void> {
   const redis = RedisService.getInstance();
-  
+
   // Store the timestamp
-  await redis.set(`ohlcv_time_${type}:${chatId}`, timestamp.toString(), REDIS_TTL);
-  
+  await redis.set(
+    `ohlcv_time_${type}:${chatId}`,
+    timestamp.toString(),
+    REDIS_TTL,
+  );
+
   // Display updated settings
   await displayOhlcvSettings(chatId, messageId);
 }
@@ -524,7 +562,8 @@ export async function fetchOhlcvData(
 ): Promise<void> {
   try {
     const redis = RedisService.getInstance();
-    const resolution = await redis.get(`ohlcv_resolution:${chatId}`) || DEFAULT_RESOLUTION;
+    const resolution =
+      (await redis.get(`ohlcv_resolution:${chatId}`)) || DEFAULT_RESOLUTION;
     const timeStart = await redis.get(`ohlcv_time_start:${chatId}`);
     const timeEnd = await redis.get(`ohlcv_time_end:${chatId}`);
 
@@ -540,14 +579,16 @@ export async function fetchOhlcvData(
     await redis.set(`ohlcv_token:${chatId}`, tokenAddress, REDIS_TTL);
 
     // Fetch data
-    const response = await makeVybeRequest(`price/${tokenAddress}/token-ohlcv?${params.toString()}`);
+    const response = await makeVybeRequest(
+      `price/${tokenAddress}/token-ohlcv?${params.toString()}`,
+    );
     if (!response || !response.data) {
       throw new Error('No OHLCV data found');
     }
 
     const data = response.data;
     let message = '<b>📊 Token OHLCV Data</b>\n\n';
-    
+
     // Helper function to format numbers
     const formatNumber = (num: number): string => {
       return Number(num).toFixed(2);
@@ -556,13 +597,13 @@ export async function fetchOhlcvData(
     // Helper function to format timestamp
     const formatTimestamp = (timestamp: number): string => {
       const date = new Date(timestamp * 1000);
-      return date.toLocaleString('en-US', { 
+      return date.toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
-        hour12: true
+        hour12: true,
       });
     };
 
@@ -583,7 +624,7 @@ export async function fetchOhlcvData(
     const paginationButtons = createPaginationButtons(
       page,
       page + (data.length === 10 ? 1 : 0),
-      '/sub-o_' // Short form for OHLCV pagination
+      '/sub-o_', // Short form for OHLCV pagination
     );
 
     const finalMessage = {
@@ -599,7 +640,10 @@ export async function fetchOhlcvData(
     };
 
     if (messageId) {
-      await updateMessage(TELEGRAM_BASE_URL, { ...finalMessage, message_id: messageId });
+      await updateMessage(TELEGRAM_BASE_URL, {
+        ...finalMessage,
+        message_id: messageId,
+      });
     } else {
       await sendMessage(TELEGRAM_BASE_URL, finalMessage);
     }
@@ -610,12 +654,17 @@ export async function fetchOhlcvData(
       text: '<b>❌ Error</b>\n\nFailed to fetch OHLCV data. Please try again.',
       parse_mode: 'HTML' as 'HTML',
       reply_markup: {
-        inline_keyboard: [[{ text: '🔙 Back', callback_data: '/sub-prices_ohlcv_settings' }]],
+        inline_keyboard: [
+          [{ text: '🔙 Back', callback_data: '/sub-prices_ohlcv_settings' }],
+        ],
       },
     };
 
     if (messageId) {
-      await updateMessage(TELEGRAM_BASE_URL, { ...errorMessage, message_id: messageId });
+      await updateMessage(TELEGRAM_BASE_URL, {
+        ...errorMessage,
+        message_id: messageId,
+      });
     } else {
       await sendMessage(TELEGRAM_BASE_URL, errorMessage);
     }

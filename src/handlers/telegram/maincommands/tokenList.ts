@@ -12,7 +12,11 @@ import {
   sendMessage,
   updateMessage,
 } from '../../../utils/helpers';
-import { formatPriceChange, formatLargeNumber, createPaginationButtons } from '../utils/formatters';
+import {
+  formatPriceChange,
+  formatLargeNumber,
+  createPaginationButtons,
+} from '../utils/formatters';
 
 const REDIS_TTL = 60;
 
@@ -64,7 +68,8 @@ export async function displayTokenListSettings(
       ? JSON.parse(settingsStr)
       : { limit: 10 };
 
-    const message = `<b>⚙️ Token List Settings</b>\n\n` +
+    const message =
+      `<b>⚙️ Token List Settings</b>\n\n` +
       `<b>📊 Sort By:</b> ${settings.sortBy || 'None'}\n` +
       `<b>↕️ Direction:</b> ${settings.sortDirection || 'None'}\n` +
       `<b>🔢 Limit:</b> ${settings.limit} tokens per page`;

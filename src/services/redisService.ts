@@ -104,4 +104,77 @@ export class RedisService {
       return false;
     }
   }
+
+  async saveAlertTransfer(userId: number, whaleAddress: string, filters: TransferFilters) {
+    if (!this.client) throw new Error('Redis client not initialized');
+    
+    const key = "transfers";
+
+    const existingRaw = await this.client.get(key) || "{}";
+
+    const data:TransferEntry = JSON.parse(existingRaw);
+
+    if (!data[whaleAddress]) {
+      data[whaleAddress] = [{ userId, filters }];
+    } else {
+      const existingUser = data[whaleAddress].find(user => user.userId === userId);
+      if (existingUser) {
+        existingUser.filters = filters;
+      } else {
+        data[whaleAddress].push({ userId, filters });
+      }
+    }
+
+    await this.client.set(key, JSON.stringify(data));
+  }
+
+  async enqueueTransferAlert(whaleAddress: string, data: any): Promise<void> {
+    if (!this.client) throw new Error('Redis client not initialized');
+  
+    const payload = {
+      whaleAddress,
+      data,
+    };
+  
+    await this.client.lPush("transfer:alert:queue", JSON.stringify(payload));
+  }
+
+  async dequeueTransferAlert(): Promise<{ whaleAddress: string; data: any } | null> {
+    if (!this.client) throw new Error('Redis client not initialized');
+  
+    const raw = await this.client.rPop("transfer:alert:queue");
+    if (!raw) return null;
+  
+    return JSON.parse(raw);
+  }
+  
+  
+
 }
+
+
+
+
+export interface TransferFilters {
+  send: boolean;
+  receive: boolean;
+  mintAddress?: string;
+  amount?: number;
+  greater?: boolean;
+  active: boolean;
+}
+
+export interface UserTransfer {
+  userId: number;
+  filters: TransferFilters;
+}
+
+export interface TransferEntry {
+  [transferId: string]: UserTransfer[];
+}
+
+export interface TransfersData {
+  transfers: TransferEntry;
+}
+
+

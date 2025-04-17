@@ -12,6 +12,8 @@ import {
   updateMessage,
 } from '../../utils/helpers';
 import { displayMainMenu } from './mainMenu';
+import { formatAlertsSummaryHtml, renderAlertSettingsMenu } from './maincommands/transfers';
+import type { UserTransfer } from '../../services/redisService';
 import { searchAddress } from './maincommands/knownaccounts';
 import { searchNftOwners } from './maincommands/nftowners';
 import {
@@ -228,6 +230,7 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
     const userId = payload.message.from.id;
     const messageText = payload.message.text || '';
     const baseUrl = TELEGRAM_BASE_URL;
+    const messageId=payload.message.message_id;
 
     // Get user state from Redis
     const redis = RedisService.getInstance();
@@ -251,11 +254,21 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
     const tokenHoldersState = await redis.get(`token_holders_state:${userId}`);
     const tokenTransfersState = await redis.get(`token_transfers_state:${userId}`);
     const priceMarketsState = await redis.get(`prices_markets_state:${chatId}`);
+    const transferAlertState = await redis.get(`userState-${userId}`);
 
     // Handle commands and states
     switch (messageText) {
       case '/start':
         await handleWelcomeMessage(chatId, baseUrl);
+        break;
+      case '/myalerts':
+        const alertsSummary = await formatAlertsSummaryHtml(chatId);
+        await sendMessage(baseUrl, {
+          chat_id: chatId,
+          text: alertsSummary.text,
+          parse_mode: 'HTML' as 'HTML',
+          reply_markup: alertsSummary.reply_markup,
+        });
         break;
 
       default:
@@ -510,6 +523,162 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
           
           await redis.del(`userState-${userId}`);
         }
+        // Handle transfer address input
+        else if (userState === 'transfer_address') {
+          console.log('Handling transfer address input');
+          const address = messageText.trim();
+          if (!isValidSolanaAddress(address)) {
+            await sendErrorMessage(baseUrl, chatId, 'Invalid address. Please enter a valid Solana address.');
+            return;
+          }
+          
+          // Import handleNewAlert from transfers
+          const { handleNewAlert } = await import('./maincommands/transfers');
+
+          await handleNewAlert(chatId, address);
+          await redis.del(`userState-${userId}`);
+          return;
+        }
+
+        // Handle transfer mint input
+        else if (userState === 'transfer_mint') {
+          console.log(payload)
+          console.log("inside the transfer mint settings",chatId,messageId,messageText)
+          const mintAddress = messageText.trim();
+          if (mintAddress === '/clear') {
+            const whaleAddress = await redis.get(`editing_alert_${chatId}`);
+            if (!whaleAddress) {
+              await sendErrorMessage(baseUrl, chatId, 'Session expired. Please try again.');
+              return;
+            }
+
+            const transfersRaw = await redis.get('transfers') || '{}';
+            const transfersData = JSON.parse(transfersRaw);
+            const users = (transfersData[whaleAddress] || []) as UserTransfer[];
+            const userAlert = users.find((u: UserTransfer) => u.userId === chatId);
+            if (!userAlert) {
+              await sendErrorMessage(baseUrl, chatId, 'Alert not found.');
+              return;
+            }
+
+            delete userAlert.filters.mintAddress;
+            await redis.saveAlertTransfer(chatId, whaleAddress, userAlert.filters);
+            const response = await sendMessage(baseUrl, {
+              chat_id: chatId,
+              text: '✅ <b>Settings Updated</b>',
+              parse_mode: 'HTML' as 'HTML',
+            });
+            await renderAlertSettingsMenu(chatId, response.message_id, whaleAddress);
+            await redis.del(`userState-${userId}`);
+            await redis.del(`editing_alert_${chatId}`);
+            return;
+          }
+
+          if (!isValidSolanaAddress(mintAddress)) {
+            await sendErrorMessage(baseUrl, chatId, 'Invalid mint address. Please enter a valid Solana address.');
+            return;
+          }
+
+          const whaleAddress = await redis.get(`editing_alert_${chatId}`);
+          if (!whaleAddress) {
+            await sendErrorMessage(baseUrl, chatId, 'Session expired. Please try again.');
+            return;
+          }
+
+          const transfersRaw = await redis.get('transfers') || '{}';
+          const transfersData = JSON.parse(transfersRaw);
+          const users = (transfersData[whaleAddress] || []) as UserTransfer[];
+          const userAlert = users.find((u: UserTransfer) => u.userId === chatId);
+          if (!userAlert) {
+            await sendErrorMessage(baseUrl, chatId, 'Alert not found.');
+            return;
+          }
+
+          userAlert.filters.mintAddress = mintAddress;
+          await redis.saveAlertTransfer(chatId, whaleAddress, userAlert.filters);
+          const response = await sendMessage(baseUrl, {
+            chat_id: chatId,
+            text: '✅ <b>Settings Updated</b>',
+            parse_mode: 'HTML' as 'HTML',
+          });
+          // console.log("the response is",response)
+          await renderAlertSettingsMenu(chatId, response.result.message_id, whaleAddress);
+          await redis.del(`userState-${userId}`);
+          await redis.del(`editing_alert_${chatId}`);
+          return;
+        }
+
+        // Handle transfer amount input
+        else if (userState === 'transfer_amount') {
+          if (messageText.trim() === '/clear') {
+            const whaleAddress = await redis.get(`editing_alert_${chatId}`);
+            if (!whaleAddress) {
+              await sendErrorMessage(baseUrl, chatId, 'Session expired. Please try again.');
+              return;
+            }
+
+            const transfersRaw = await redis.get('transfers') || '{}';
+            const transfersData = JSON.parse(transfersRaw);
+            const users = (transfersData[whaleAddress] || []) as UserTransfer[];
+            const userAlert = users.find((u: UserTransfer) => u.userId === chatId);
+            if (!userAlert) {
+              await sendErrorMessage(baseUrl, chatId, 'Alert not found.');
+              return;
+            }
+
+            delete userAlert.filters.amount;
+            delete userAlert.filters.greater;
+            await redis.saveAlertTransfer(chatId, whaleAddress, userAlert.filters);
+            const response = await sendMessage(baseUrl, {
+              chat_id: chatId,
+              text: '✅ <b>Settings Updated</b>',
+              parse_mode: 'HTML' as 'HTML',
+            });
+            await renderAlertSettingsMenu(chatId, response.message_id, whaleAddress);
+            await redis.del(`userState-${userId}`);
+            await redis.del(`editing_alert_${chatId}`);
+            return;
+          }
+
+          const amount = parseFloat(messageText.trim());
+          if (isNaN(amount) || amount <= 0) {
+            await sendErrorMessage(baseUrl, chatId, 'Invalid amount. Please enter a positive number.');
+            return;
+          }
+
+          const whaleAddress = await redis.get(`editing_alert_${chatId}`);
+          if (!whaleAddress) {
+            await sendErrorMessage(baseUrl, chatId, 'Session expired. Please try again.');
+            return;
+          }
+
+          const transfersRaw = await redis.get('transfers') || '{}';
+          const transfersData = JSON.parse(transfersRaw);
+          const users = (transfersData[whaleAddress] || []) as UserTransfer[];
+          const userAlert = users.find((u: UserTransfer) => u.userId === chatId);
+          if (!userAlert) {
+            await sendErrorMessage(baseUrl, chatId, 'Alert not found.');
+            return;
+          }
+
+          userAlert.filters.amount = amount;
+          await redis.saveAlertTransfer(chatId, whaleAddress, userAlert.filters);
+          const response = await sendMessage(baseUrl, {
+            chat_id: chatId,
+            text: '💰 <b>Set Amount Condition</b>\n\nSelect the condition for your amount filter:',
+            parse_mode: 'HTML' as 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '> Greater Than', callback_data: '/sub-ta_gt' },
+                  { text: '≤ Less/Equal', callback_data: '/sub-ta_le' },
+                ],
+              ],
+            },
+          });
+          return;
+        }
+
         // Handle unknown commands
         else {
           await sendErrorMessage(baseUrl, chatId, 'Invalid command');

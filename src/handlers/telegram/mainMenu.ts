@@ -34,6 +34,7 @@ export async function displayMainMenu(
         ],
         [
           { text: '💹 Prices', callback_data: '/prices' },
+          { text: '📬 Alerts', callback_data: '/alerts' },
         ],
       ],
     },

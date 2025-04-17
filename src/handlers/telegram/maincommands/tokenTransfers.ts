@@ -5,7 +5,11 @@ import {
   sendMessage,
   updateMessage,
 } from '../../../utils/helpers';
-import { formatTokenAmount, formatTimestamp, createPaginationButtons } from '../utils/formatters';
+import {
+  formatTokenAmount,
+  formatTimestamp,
+  createPaginationButtons,
+} from '../utils/formatters';
 
 const REDIS_TTL = 60;
 
@@ -21,7 +25,10 @@ interface TokenTransfersFilter {
 /**
  * Prompt user to configure transaction history filters
  */
-export async function promptTokenTransfersConfig(chatId: number, messageId?: number) {
+export async function promptTokenTransfersConfig(
+  chatId: number,
+  messageId?: number,
+) {
   try {
     const redis = RedisService.getInstance();
     const filterKey = `token_transfers_filter:${chatId}`;
@@ -39,7 +46,8 @@ export async function promptTokenTransfersConfig(chatId: number, messageId?: num
       );
     }
 
-    const message = `<b>🔍 Token Transfers Filter</b>\n\n` +
+    const message =
+      `<b>🔍 Token Transfers Filter</b>\n\n` +
       `Configure filters for token transfers:\n\n` +
       `<b>🪙 Token:</b> ${filter.mintAddress || 'Not set'}\n` +
       `<b>📤 From:</b> ${filter.fromAddress || 'Not set'}\n` +
@@ -137,7 +145,9 @@ export async function promptTokenTransfersFilterValue(
     } to filter by:\n\n<i>Type 'clear' to remove this filter</i>`,
     parse_mode: 'HTML' as 'HTML',
     reply_markup: {
-      inline_keyboard: [[{ text: '🔙 Cancel', callback_data: '/sub-tokens_transfers_fetch' }]],
+      inline_keyboard: [
+        [{ text: '🔙 Cancel', callback_data: '/sub-tokens_transfers_fetch' }],
+      ],
     },
   });
 }
@@ -145,14 +155,17 @@ export async function promptTokenTransfersFilterValue(
 /**
  * Clear all token transfer filters
  */
-export async function clearAllTokenTransfersFilters(chatId: number, messageId?: number) {
+export async function clearAllTokenTransfersFilters(
+  chatId: number,
+  messageId?: number,
+) {
   try {
     const redis = RedisService.getInstance();
     const defaultFilter: TokenTransfersFilter = {
       mintAddress: undefined,
       fromAddress: undefined,
       toAddress: undefined,
-      limit: 10
+      limit: 10,
     };
     await redis.set(
       `token_transfers_filter:${chatId}`,
@@ -255,8 +268,10 @@ export async function fetchTokenTransfers(
     // Add filter summary
     if (filter.mintAddress || filter.fromAddress || filter.toAddress) {
       message += '<b>🔍 Active Filters:</b>\n';
-      if (filter.mintAddress) message += `Token: <code>${filter.mintAddress}</code>\n`;
-      if (filter.fromAddress) message += `From: <code>${filter.fromAddress}</code>\n`;
+      if (filter.mintAddress)
+        message += `Token: <code>${filter.mintAddress}</code>\n`;
+      if (filter.fromAddress)
+        message += `From: <code>${filter.fromAddress}</code>\n`;
       if (filter.toAddress) message += `To: <code>${filter.toAddress}</code>\n`;
       message += '\n';
     }
