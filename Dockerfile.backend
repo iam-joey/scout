@@ -1,0 +1,19 @@
+# Dockerfile.backend for main backend service
+FROM oven/bun:latest
+
+WORKDIR /app
+
+# Copy dependency files
+COPY package.json bun.lock ./
+
+# Install dependencies
+RUN bun install
+
+# Copy source code
+COPY . .
+
+# Expose backend port
+EXPOSE 3000
+
+# Start the backend
+CMD ["bun", "run", "start"]
