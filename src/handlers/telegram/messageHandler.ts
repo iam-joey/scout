@@ -593,8 +593,9 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
               chat_id: chatId,
               text: '✅ <b>Settings Updated</b>',
               parse_mode: 'HTML' as 'HTML',
+              
             });
-            await renderAlertSettingsMenu(chatId, response.message_id, whaleAddress);
+            await renderAlertSettingsMenu(chatId, response.result.message_id, whaleAddress);
             await redis.del(`userState-${userId}`);
             await redis.del(`editing_alert_${chatId}`);
             return;
@@ -688,7 +689,7 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
               text: '✅ <b>Settings Updated</b>',
               parse_mode: 'HTML' as 'HTML',
             });
-            await renderAlertSettingsMenu(chatId, response.message_id, whaleAddress);
+            await renderAlertSettingsMenu(chatId, response.result.message_id, whaleAddress);
             await redis.del(`userState-${userId}`);
             await redis.del(`editing_alert_${chatId}`);
             return;
