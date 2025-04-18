@@ -148,8 +148,106 @@ export class RedisService {
     return JSON.parse(raw);
   }
   
-  
 
+  async getOracleAlerts(userId: number): Promise<{[priceFeedId: string]: PriceFilter} | null> {
+    if (!this.client) throw new Error('Redis client not initialized');
+
+    const key = 'oracles';
+    const existingRaw = await this.client.get(key) || '{}';
+    const data: OraclesData = JSON.parse(existingRaw);
+
+    const userAlerts: {[priceFeedId: string]: PriceFilter} = {};
+    
+    // Find all alerts for this user
+    Object.entries(data).forEach(([priceFeedId, users]) => {
+      const userAlert = users.find(u => u.userId === userId);
+      if (userAlert) {
+        userAlerts[priceFeedId] = userAlert.filters;
+      }
+    });
+
+    return Object.keys(userAlerts).length > 0 ? userAlerts : null;
+  }
+
+  async deleteOracleAlert(userId: number, priceFeedId: string): Promise<void> {
+    if (!this.client) throw new Error('Redis client not initialized');
+
+    const key = 'oracles';
+    const existingRaw = await this.client.get(key) || '{}';
+    const data: OraclesData = JSON.parse(existingRaw);
+
+    if (data[priceFeedId]) {
+      data[priceFeedId] = data[priceFeedId].filter(u => u.userId !== userId);
+      if (data[priceFeedId].length === 0) {
+        delete data[priceFeedId];
+      }
+      await this.client.set(key, JSON.stringify(data));
+    }
+  }
+
+  async saveOraclePriceAlert(userId: number, priceFeedId: string, filters: PriceFilter) {
+    if (!this.client) throw new Error('Redis client not initialized');
+
+    const key="oracles"
+
+    const existingRaw = await this.client.get(key) || "{}";
+
+    const data:OraclesData = JSON.parse(existingRaw);
+
+    if (!data[priceFeedId]) {
+      data[priceFeedId] = [{ userId, filters }];
+    }else{
+      const existingUser = data[priceFeedId].find(user => user.userId === userId);
+      if (existingUser) {
+        existingUser.filters = filters;
+      } else {
+        data[priceFeedId].push({ userId, filters });
+      }
+    }
+
+    await this.client.set(key, JSON.stringify(data));
+  }
+
+  async enqueueOracleAlert(priceFeedId: string, data: any): Promise<void> {
+    if (!this.client) throw new Error('Redis client not initialized');
+  
+    const payload = {
+      priceFeedId,
+      data
+    };
+  
+    await this.client.lPush("oracle:alert:queue", JSON.stringify(payload));
+  }
+  
+  async dequeueOracleAlert(): Promise<{ priceFeedId: string; data: any } | null> {
+    if (!this.client) throw new Error('Redis client not initialized');
+  
+    const raw = await this.client.rPop("oracle:alert:queue");
+    if (!raw) return null;
+  
+    return JSON.parse(raw);
+  }
+  
+  
+}
+
+
+// Define the filter options for price conditions
+interface PriceFilter {
+  price: number;
+  name: string;
+  active: boolean;
+}
+
+// Define a user oracle configuration
+interface UserOracle {
+  userId: number;
+  filters: PriceFilter;
+}
+
+// Define the structure for oracles
+interface OraclesData {
+  [priceFeedId: string]: UserOracle[];
 }
 
 
@@ -176,5 +274,3 @@ export interface TransferEntry {
 export interface TransfersData {
   transfers: TransferEntry;
 }
-
-

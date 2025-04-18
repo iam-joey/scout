@@ -25,7 +25,7 @@ router.post('/webhook', async (req, res) => {
 });
 
 router.get('/check', async (req: any, res: any) => {
-  const data = await RedisService.getInstance().get("transfers");
+  const data = await RedisService.getInstance().get("oracles");
   res.json(data);
 });
 

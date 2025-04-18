@@ -1,7 +1,7 @@
   import { RedisService } from '../../services/redisService';
   import type { UserTransfer } from '../../services/redisService';
   import type { TelegramWebHookCallBackQueryPayload } from '../../types/telegram';
-  import { TELEGRAM_BASE_URL } from '../../utils/constant';
+  import { MAX_PRICE_ALERTS, TELEGRAM_BASE_URL } from '../../utils/constant';
   import {
     knownAccounts,
     handleKnownAccountsRequest,
@@ -80,6 +80,11 @@
     promptNewAlertAddress,
     renderAlertSettingsMenu,
   } from './maincommands/transfers';
+import {
+    showPriceAlertsMenu,
+    promptNewPriceAlert,
+    renderPriceAlertSettings,
+  } from './maincommands/priceAlerts';
   import {
     displayPriceProgramsMenu,
     fetchPricePrograms,
@@ -1208,6 +1213,98 @@
           return;
         }
         console.log('Unknown callback data:', callbackData);
+
+        if(callbackData.startsWith('/sub-pa_edit_')) {
+          const redis = RedisService.getInstance();
+          const priceFeedId = callbackData.replace('/sub-pa_edit_', '');
+          await redis.set(`editing_alert_${chatId}`, priceFeedId, 60);
+          await renderPriceAlertSettings(chatId, messageId, priceFeedId);
+          return;
+        }
+
+        if(callbackData.startsWith('/sub-pa_price_')) {
+          const redis = RedisService.getInstance();
+          const priceFeedId = callbackData.replace('/sub-pa_price_', '');
+          await redis.set(`editing_alert_${chatId}`, priceFeedId, 60);
+          await redis.set(`userState-${userId}`, 'price_value_input', 60);
+          
+          await updateMessage(TELEGRAM_BASE_URL, {
+            chat_id: chatId,
+            message_id: messageId,
+            text: 'Enter the new price you want to set for this alert:',
+            parse_mode: 'HTML' as 'HTML',
+            reply_markup: {
+              inline_keyboard: [[{ text: '🔙 Cancel', callback_data: '/alerts_prices' }]],
+            },
+          });
+          return;
+        }
+
+        if(callbackData.startsWith('/sub-pa_name_')) {
+          const redis = RedisService.getInstance();
+          const priceFeedId = callbackData.replace('/sub-pa_name_', '');
+          await redis.set(`editing_alert_${chatId}`, priceFeedId, 60);
+          await redis.set(`userState-${userId}`, 'price_name_input', 60);
+          await updateMessage(TELEGRAM_BASE_URL, {
+            chat_id: chatId,
+            message_id: messageId,
+            text: 'Enter the new name you want to set for this alert:',
+            parse_mode: 'HTML' as 'HTML',
+            reply_markup: {
+              inline_keyboard: [[{ text: '🔙 Cancel', callback_data: '/alerts_prices' }]]
+            },
+          });
+          return;
+        }
+
+        if(callbackData.startsWith('/sub-pa_del')){
+          const redis = RedisService.getInstance();
+          const priceFeedId = await redis.get(`editing_alert_${chatId}`);
+          if (!priceFeedId) {
+            await sendErrorMessage(TELEGRAM_BASE_URL, chatId, 'Session expired');
+            return;
+          }
+          await redis.deleteOracleAlert(chatId, priceFeedId);
+          await sendMessage(TELEGRAM_BASE_URL, {
+            chat_id: chatId,
+            text: '✅ <b>Alert Deleted</b>',
+            parse_mode: 'HTML' as 'HTML',
+          });
+          await showPriceAlertsMenu(chatId);
+          return;
+        }
+
+        if(callbackData.startsWith('/sub-pa_add')){
+          const alerts = await RedisService.getInstance().getOracleAlerts(chatId);
+          if (alerts && Object.keys(alerts).length >= MAX_PRICE_ALERTS) {
+            await sendErrorMessage(
+              baseUrl,  
+              chatId,
+              `You have reached the maximum number of price alerts (${MAX_PRICE_ALERTS}). Please remove an existing alert before adding a new one.`,
+            );
+            return;
+          }
+          await promptNewPriceAlert(chatId);
+          return;
+        }
+
+        if(callbackData.startsWith('/sub-pa_active_')) {
+          const redis = RedisService.getInstance();
+          const priceFeedId = callbackData.replace('/sub-pa_active_', '');
+          const alerts = await redis.getOracleAlerts(chatId) || {};
+          const filter = alerts[priceFeedId];
+          if (!filter) {
+            await sendErrorMessage(TELEGRAM_BASE_URL, chatId, 'Alert not found');
+            return;
+          }
+          const newActive = !filter.active;
+          await redis.saveOraclePriceAlert(chatId, priceFeedId, { price: filter.price, name: filter.name, active: newActive });
+          // Re-render settings menu
+          await renderPriceAlertSettings(chatId, messageId, priceFeedId);
+          return;
+        }
+
+        console.log("return from here");
         return;
       }
 
@@ -1244,9 +1341,11 @@
         case '/alerts':
           await showAlertsMainMenu(chatId, messageId);
           break;
-
         case '/alerts_transfers':
           await showAlertsMenu(chatId, messageId);
+          break;
+        case '/alerts_prices':
+          await showPriceAlertsMenu(chatId, messageId);
           break;
         default:
           console.log('Unknown callback:', callbackData);

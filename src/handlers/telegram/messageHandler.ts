@@ -1,6 +1,7 @@
 import { RedisService } from '../../services/redisService';
 import type { TelegramMessagePayload } from '../../types/telegram';
-import { TELEGRAM_BASE_URL } from '../../utils/constant';
+import { TELEGRAM_BASE_URL, COMMON_TOKENS, MAX_PRICE_ALERTS } from '../../utils/constant';
+import type { TokenSymbol } from '../../utils/constant';
 import {
   formatNftSummaryHtml,
   formatTokenBalanceHtml,
@@ -13,6 +14,7 @@ import {
 } from '../../utils/helpers';
 import { displayMainMenu } from './mainMenu';
 import { formatAlertsSummaryHtml, renderAlertSettingsMenu } from './maincommands/transfers';
+import { showPriceAlertsMenu } from './maincommands/priceAlerts';
 import type { UserTransfer } from '../../services/redisService';
 import { searchAddress } from './maincommands/knownaccounts';
 import { searchNftOwners } from './maincommands/nftowners';
@@ -270,7 +272,31 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
           reply_markup: alertsSummary.reply_markup,
         });
         break;
-
+      case '/SOL':
+      case '/ETH':
+      case '/BTC':
+        const alerts = await RedisService.getInstance().getOracleAlerts(userId);
+        if (alerts && Object.keys(alerts).length >= MAX_PRICE_ALERTS) {
+          await sendErrorMessage(
+            baseUrl,  
+            chatId,
+            `You have reached the maximum number of price alerts (${MAX_PRICE_ALERTS}). Please remove an existing alert before adding a new one.`,
+          );
+          return;
+        }
+        const token = messageText.slice(1) as TokenSymbol; // Remove the /
+        const priceFeedId = COMMON_TOKENS[token];
+        await redis.set(`editing_alert_${chatId}`, priceFeedId, 60);
+        await redis.set(`userState-${userId}`, 'price_value_input', 60);
+        await sendMessage(baseUrl, {
+          chat_id: chatId,
+          text: `At what <b>price</b> do you want to be alerted for ${token}?`,
+          parse_mode: 'HTML' as 'HTML',
+          reply_markup: {
+            inline_keyboard: [[{ text: '🔙 Cancel', callback_data: '/alerts_prices' }]],
+          },
+        });
+        break;
       default:
         // Handle NFT balance request
         if (userState === 'nftBalances') {
@@ -610,6 +636,34 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
 
         // Handle transfer amount input
         else if (userState === 'transfer_amount') {
+          if (messageText.startsWith('/')) {
+            // Handle quick alert commands
+            if (messageText.startsWith('/alert ')) {
+              const token = messageText.split(' ')[1]?.toUpperCase() as TokenSymbol;
+              if (!token || !COMMON_TOKENS[token]) {
+                await sendErrorMessage(baseUrl, chatId, 'Invalid token. Use /alert SOL, /alert ETH, or /alert BTC');
+                return;
+              }
+
+              const priceFeedId = COMMON_TOKENS[token];
+              await redis.set(`editing_alert_${chatId}`, priceFeedId, 60);
+              await redis.set(`userState-${userId}`, 'price_value_input', 60);
+              
+              await sendMessage(baseUrl, {
+                chat_id: chatId,
+                text: `At what <b>price</b> do you want to be alerted for ${token}?`,
+                parse_mode: 'HTML' as 'HTML',
+                reply_markup: {
+                  inline_keyboard: [[{ text: '🔙 Cancel', callback_data: '/alerts_prices' }]],
+                },
+              });
+              return;
+            }
+
+            
+            
+          }
+
           if (messageText.trim() === '/clear') {
             const whaleAddress = await redis.get(`editing_alert_${chatId}`);
             if (!whaleAddress) {
@@ -676,6 +730,99 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
               ],
             },
           });
+          return;
+        }
+
+        // Handle price feed input
+        else if (userState === 'price_feed_input') {
+          const priceFeedId = messageText.trim();
+          if (!priceFeedId) {
+            await sendErrorMessage(baseUrl, chatId, 'Invalid price feed ID');
+            return;
+          }
+
+          await redis.set(`editing_alert_${chatId}`, priceFeedId, 60);
+          await redis.set(`userState-${userId}`, 'price_value_input', 60);
+          
+          await sendMessage(baseUrl, {
+            chat_id: chatId,
+            text: 'At what <b>price</b> do you want to be alerted?',
+            parse_mode: 'HTML' as 'HTML',
+            reply_markup: {
+              inline_keyboard: [[{ text: '🔙 Cancel', callback_data: '/alerts_prices' }]],
+            },
+          });
+          return;
+        }
+
+        // Handle price value input
+        else if (userState === 'price_value_input') {
+          const price = parseFloat(messageText.trim());
+          if (isNaN(price) || price <= 0) {
+            await sendErrorMessage(baseUrl, chatId, 'Invalid price. Please enter a positive number.');
+            return;
+          }
+
+          const priceFeedId = await redis.get(`editing_alert_${chatId}`);
+          if (!priceFeedId) {
+            await sendErrorMessage(baseUrl, chatId, 'Session expired. Please try again.');
+            return;
+          }
+
+          const existing = await redis.getOracleAlerts(chatId) || {};
+          const prev = existing[priceFeedId];
+          const name = prev?.name || priceFeedId;
+          const active = prev?.active ?? true;
+          await redis.saveOraclePriceAlert(chatId, priceFeedId, { price, name, active });
+
+          await sendMessage(baseUrl, {
+            chat_id: chatId,
+            text: `✅ Price updated: "<b>${name}</b>" will alert at $${price}${active?'' : ' (inactive)'}.`, 
+            parse_mode: 'HTML' as 'HTML',
+          });
+          
+          await showPriceAlertsMenu(chatId);
+          await redis.del(`userState-${userId}`);
+          await redis.del(`editing_alert_${chatId}`);
+          return;
+        }
+        // Handle price name input
+        else if (userState === 'price_name_input') {
+          const name = messageText.trim();
+          if (!name) {
+            await sendErrorMessage(baseUrl, chatId, 'Name cannot be empty. Please enter a valid name.');
+            return;
+          }
+          const priceFeedId = await redis.get(`editing_alert_${chatId}`);
+          if (!priceFeedId) {
+            await sendErrorMessage(baseUrl, chatId, 'Session expired. Please start again.');
+            return;
+          }
+          // Determine price: new or existing
+          const priceStr = await redis.get(`editing_price_${chatId}`);
+          let priceNum: number;
+          if (priceStr) {
+            priceNum = parseFloat(priceStr);
+          } else {
+            const alerts = await redis.getOracleAlerts(chatId);
+            priceNum = alerts && alerts[priceFeedId] ? alerts[priceFeedId].price : NaN;
+          }
+          if (isNaN(priceNum) || priceNum <= 0) {
+            await sendErrorMessage(baseUrl, chatId, 'Invalid price data. Please start again.');
+            return;
+          }
+          // Save alert with name
+          await redis.saveOraclePriceAlert(chatId, priceFeedId, { price: priceNum, name, active: true });
+          await sendMessage(baseUrl, {
+            chat_id: chatId,
+            text: `✅ Alert "<b>${name}</b>" set for $${priceNum}.`,
+            parse_mode: 'HTML' as 'HTML',
+          });
+
+          await showPriceAlertsMenu(chatId);
+          await redis.del(`userState-${userId}`);
+          await redis.del(`editing_alert_${chatId}`);
+          await redis.del(`editing_price_${chatId}`);
           return;
         }
 

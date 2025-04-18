@@ -7,7 +7,7 @@ import { isValidSolanaAddress, sendErrorMessage, sendMessage, updateMessage } fr
 export async function showAlertsMainMenu(chatId: number, messageId?: number): Promise<void> {
   const keyboard = [
     [{ text: '💸 Transfer Alerts', callback_data: '/alerts_transfers' }],
-    // Add more alert types here in the future
+    [{ text: '🧪 Token Notifications', callback_data: '/alerts_prices' }],
     [{ text: '🔙 Back', callback_data: '/main' }],
   ];
 
