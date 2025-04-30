@@ -2,11 +2,9 @@ import express from 'express';
 import { createServer } from 'http';
 import { setupWebSocketServer } from './websocket/server';
 import { config } from 'dotenv';
-import { request } from 'https';
 import v1router from './routes/v1/v1';
 import { RedisService } from './services/redisService';
 
-// Load environment variables
 config();
 
 const app = express();

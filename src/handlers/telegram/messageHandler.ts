@@ -263,6 +263,44 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
       case '/start':
         await handleWelcomeMessage(chatId, baseUrl);
         break;
+      case "/help":
+        const message = `
+            <b>✨ Welcome to VybeSniper Bot!</b>
+            <i>Your all-in-one tool for Solana wallet analytics and tracking.</i>
+
+            <b>🧰 Here's what I can do:</b>
+
+            <b>💰 Wallet Balances</b> – Instantly fetch SOL & token balances for any address, even for massive portfolios (paginated).
+
+            <b>📈 PnL Overview</b> – View historical profit/loss breakdowns per wallet. Fully configurable resolution and range.
+
+            <b>🔖 Labeled Accounts</b> – Tag and bookmark addresses for easy VIP/favorites tracking.
+
+            <b>🎨 NFT Owners</b> – Visualize holders of an NFT collection. See ownership distributions and pagination.
+
+            <b>📁 Programs Data</b> – Get program insights like:
+            - Usage volume & rank
+            - TVL
+            - Transaction & instruction metrics
+            - Active wallet trends
+
+            <b>💸 Tokens</b> – Explore curated tokens, monitor whale movements, and track real-time transfers.
+
+            <b>💹 Prices</b> – Live market data with OHLCV charts. Set custom timeframes and resolutions.
+
+            <b>📬 Alerts</b> – Real-time alert engine:
+            - <b>Transfer Alerts</b>: Track token movements for any address.
+            - <b>Price Alerts</b>: Triggered on price spikes or drops.
+            —
+            <i>Type any wallet address or use the buttons to get started.</i>
+            `;
+            await sendMessage(baseUrl, {
+              chat_id: chatId,
+              text: message,
+              parse_mode: 'HTML' as 'HTML'
+            });
+
+        break;
       case '/myalerts':
         const alertsSummary = await formatAlertsSummaryHtml(chatId);
         await sendMessage(baseUrl, {
@@ -272,9 +310,9 @@ export const handleMessage = async (payload: TelegramMessagePayload) => {
           reply_markup: alertsSummary.reply_markup,
         });
         break;
-      case '/SOL':
-      case '/ETH':
-      case '/BTC':
+      case '/sol':
+      case '/eth':
+      case '/btc':
         const alerts = await RedisService.getInstance().getOracleAlerts(userId);
         if (alerts && Object.keys(alerts).length >= MAX_PRICE_ALERTS) {
           await sendErrorMessage(
