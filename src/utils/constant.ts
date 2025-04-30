@@ -7,12 +7,12 @@ const TELEGRAM_BASE_URL = process.env.TELEGRAM_BASE_URL!;
 
 export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 
-export type TokenSymbol = 'SOL' | 'ETH' | 'BTC';
+export type TokenSymbol = 'sol' | 'eth' | 'btc';
 
 export const COMMON_TOKENS: Record<TokenSymbol, string> = {
-  'SOL': 'H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG',
-  'ETH': 'JBu1AL4obBcCMqKBBxhpWCNUt136ijcuMZLFvTP7iWdB',
-  'BTC': 'GVXRSBjFk6e6J3NbVPXohDJetcTjaeeuykUpbQF8UoMU'
+  'sol': 'H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG',
+  'eth': 'JBu1AL4obBcCMqKBBxhpWCNUt136ijcuMZLFvTP7iWdB',
+  'btc': 'GVXRSBjFk6e6J3NbVPXohDJetcTjaeeuykUpbQF8UoMU'
 };
 
 const MAX_PRICE_ALERTS = 3;

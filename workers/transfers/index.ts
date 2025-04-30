@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import WebSocket from "ws";
 import { RedisService } from "../../src/services/redisService";
+import { programData } from "../../src/data/programs"
 dotenv.config();
 
 const websocketUri = process.env.WS_URL;
