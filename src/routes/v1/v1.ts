@@ -12,6 +12,8 @@ router.post('/webhook', async (req, res) => {
 
     if ('message' in webhookData) {
       console.log('Message received:');
+      //now i need to store the user n the redis
+      await RedisService.getInstance().storeUsers(webhookData.message.from.id, webhookData.message.from.username || '');
       await handleMessage(webhookData);
     } else if ('callback_query' in webhookData) {
       console.log('Callback received:');
@@ -34,5 +36,8 @@ router.get('/delete', async (req: any, res: any) => {
   const data = await RedisService.getInstance().deleteAllKeys();
   res.json(data);
 });
+
+
+router.get("/")
 
 export default router;

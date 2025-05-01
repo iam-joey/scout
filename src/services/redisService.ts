@@ -227,8 +227,26 @@ export class RedisService {
   
     return JSON.parse(raw);
   }
+
+  async storeUsers(userId: number, username: string): Promise<void> {
+    if (!this.client) throw new Error('Redis client not initialized');
   
+    const exists = await this.client.hExists("users", String(userId));
   
+    if (!exists) {
+      await this.client.hSet("users", String(userId), username);
+      console.log(`✅ Stored user ${userId} (${username})`);
+    } else {
+      console.log(`ℹ️ User ${userId} already exists`);
+    }
+  }
+  
+
+  async getUsers():Promise<{userId:number,username:string}[]>{
+    if (!this.client) throw new Error('Redis client not initialized');
+    const users = await this.client.hGetAll("users");
+    return Object.entries(users).map(([userId, username]) => ({ userId: Number(userId), username }));
+  }
 }
 
 
